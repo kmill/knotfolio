@@ -1,0 +1,98 @@
+body {
+    background: #ccc;
+}
+
+#undo {
+    padding-bottom: 2px;
+    user-select: none;
+}
+
+#ui-table td {
+    vertical-align: top;
+    padding: 0;
+    margin: 0;
+}
+#tools-td {
+    width: 400px;
+    background: #eee;
+    border: 1px solid #000;
+}
+#tools {
+    padding: 4px;
+}
+#tools-td h1 {
+    font-size: 12pt;
+    font-weight: bold;
+    font-family: sans-serif;
+    background: #666;
+    color: #fff;
+    margin: 0;
+    padding: 2px;
+}
+
+#tools-td h2 {
+    font-size: 11pt;
+    font-weight: bold;
+    font-family: sans-serif;
+    margin: 5px 0 2px 0;
+}
+
+#tools-td input {
+    margin-right: 3px;
+    margin-bottom: 3px;
+}
+
+.icon-button {
+    display: inline-block;
+    background: #eee;
+    border: 1px solid #666;
+    border-radius: 3px;
+    font-size: 24px;
+    font-family: "Arial", "DejaVu Sans", sans-serif;
+    width: 28px;
+    height: 28px;
+    text-align: center;
+    vertical-align: middle;
+    user-select: none;
+    margin-right: 3px;
+    margin-bottom: 3px;
+}
+.icon-button.active {
+    background: #ccf;
+}
+.icon-button:hover {
+    background: #666;
+    color: #fff;
+}
+.icon-button:active {
+    background: #aaa;
+}
+.icon-button .icon-color {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+}
+
+#tools-td div.error {
+    margin-top: 1em;
+    font-size: 11pt;
+    font-family: "Arial", "DejaVu Sans", sans-serif;
+}
+#tools-td div.error h2 {
+    color: #770000;
+}
+
+#editor {
+    
+}
+canvas {
+}
+
+#diag-info table.linking-matrix {
+    border: 1px solid #ccc;
+}
+
+#diag-info table.linking-matrix td {
+    padding: 2px 3px;
+    text-align: center;
+}

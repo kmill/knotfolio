@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css">
+    <script src="kq.js"></script>
+    <script src="knot.js"></script>
+  </head>
+  <body>
+    <div id="undo">
+      <input type="button" class="undo" value="&lt;" title="Undo">
+      <span class="undo-state">1/10</span>
+      <input type="button" class="redo" value="&gt;" title="Redo">
+    </div>
+    <table id="ui-table">
+      <tr>
+        <td>
+          <div id="editor">
+          </div>
+        </td>
+        <td id="tools-td">
+          <h1>Toolbox: <span class="modename"></span></h1>
+          <div id="tools">
+          </div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
