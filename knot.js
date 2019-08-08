@@ -7,7 +7,7 @@ const PAINT_GAP = 2;
 const ERASE_RADIUS = 5;
 const MIN_LINE_LENGTH = 2;
 const MAX_PPREV_DIST = 2*PAINT_RADIUS+1 + 2*PAINT_GAP;
-const SPUR_LENGTH = 5; // the maximum-length spurs that will be auto-deleted
+const SPUR_LENGTH = 5; // the maximum-length spurs that will be auto-deleted in clean-up
 const ERROR_RADIUS = 6.5; // the radius of the red "error circles"
 const MAX_GAP_LENGTH = 50; // for under-crossings and gaps in lines
 
@@ -28,7 +28,7 @@ const palette = [
   0xffee00
 ];
 
-//// Utility functions
+///// Utility functions
 
 function assert(b) {
   if (!b) {
@@ -53,14 +53,6 @@ function hex_to_rgb(h) {
   return "#" + s(r) + s(g) + s(b);
 }
 
-function xor(a, b) {
-  /* Exclusive-or of the inputs */
-  if (a)
-    return !b;
-  else
-    return b;
-}
-
 Function.prototype.def_methods = function (source) {
   /* Define prototype methods, copied from the source object. */
   for (var key in source) {
@@ -71,7 +63,93 @@ Function.prototype.def_methods = function (source) {
   return this;
 };
 
-//// Basic geometry
+function equal(a, b) {
+  /* An structural equality function that looks for an equals method
+     on the first argument.  Falls back to ===. */
+  if (typeof a === "object") {
+    if (typeof b === "object") {
+      if (a.equal) {
+        return a.equal(b);
+      }
+      if (a instanceof Array) {
+        if (!(b instanceof Array)) {
+          return false;
+        }
+        if (a.length !== b.length) {
+          return false;
+        }
+        for (let i = 0; i < a.length; i++) {
+          if (!equal(a[i], b[i])) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+  return a === b;
+}
+function compare(a, b) {
+  /* Returns "a - b" for comparison purposes. */
+  assert(typeof a === typeof b);
+  if (typeof a === "object") {
+    if (a instanceof Array) {
+      assert(b instanceof Array);
+      if (a.length !== b.length) {
+        return a.length - b.length;
+      }
+      for (let i = 0; i < a.length; i++) {
+        let c = compare(a[i], b[i]);
+        if (c !== 0) return c;
+      }
+      return 0;
+    }
+    return a.compare(b);
+  } else if (typeof a === "number" || typeof a === "boolean") {
+    return a - b;
+  } else if (typeof a === "string") {
+    return a.localeCompare(b);
+  } else if (typeof a === "null" || typeof a === "undefined") {
+    return 0;
+  } else {
+    throw new Error("Unexpected type " + typeof a);
+  }
+}
+
+class SimpleType extends Array {
+  /* A Mathematica-like type where the "head" is the constructor. */
+  constructor() {
+    super();
+    for (let i = 0; i < arguments.length; i++) {
+      this.push(arguments[i]);
+    }
+  }
+  equal(b) {
+    assert(b instanceof self.constructor);
+    if (this.length !== b.length)
+      return false;
+    for (let i = 0; i < this.length; i++) {
+      if (!equal(this[i], b[i]))
+        return false;
+    }
+    return true;
+  }
+  compare(b) {
+    assert(b instanceof self.constructor);
+    if (this.length !== b.length)
+      return this.length - b.length;
+    for (let i = 0; i < this.length; i++) {
+      let c = compare(this[i], b[i]);
+      if (c !== 0) return c;
+    }
+    return 0;
+  }
+  toString() {
+    return this.constructor.name + "(" + this.join(", ") + ")";
+  }
+}
+
+///// Basic geometry
 
 class Point {
   constructor (x, y) {
@@ -90,7 +168,8 @@ Point.equal = function (p1, p2) {
   return p1.x === p2.x && p1.y === p2.y;
 };
 Point.similar = function (p1, p2, error=1e-10) {
-  /* Checks to see if the points are close to each other, within error in each coordinate. */
+  /* Checks to see if the points are close to each other, within the
+     given error in each coordinate. */
   assert(p1 instanceof Point);
   assert(p2 instanceof Point);
   return Math.abs(p1.x - p2.x) < error && Math.abs(p1.y - p2.y) < error;
@@ -214,7 +293,7 @@ function* line_points(p1, p2) {
   }
 }
 
-//// Planar Diagrams (PD)
+///// Planar Diagrams (PD)
 
 class PD_X extends Array {
   constructor (a, b, c, d) {
@@ -275,25 +354,49 @@ class PD_Xl extends Array {
   }
 }
 
-//// Polynomials
+///// Polynomials
 
 // A simple kind of Laurent polynomial representation is [[coeff, exponent]...]
 
-let Laurent = {
-  zero: [],
-  unit: [[1,0]],
-  copy: function (poly) {
-    return poly.slice(); // since terms are never modified
-  },
-  toString: function(poly) {
+class LTerm extends SimpleType {}
+
+class Laurent extends SimpleType {
+  copy() {
+    return new Laurent(...this); // since terms are never modified
+  }
+  simplify() {
+    /* Destructively simplify the polynomial */
+    this.sort((t1, t2) => t1[1] - t2[1]);
+    let i = 0;
+    while (i < this.length) {
+      let t1 = this[i];
+      let sum = t1[0];
+      let j = i + 1;
+      while (j < this.length && this[j][1] === t1[1]) {
+        sum += this[j][0];
+        j++;
+      }
+      if (sum === 0) {
+        this.splice(i, j-i);
+      } else if (j > i + 1) {
+        this[i] = [sum, t1[1]];
+        this.splice(i+1, j-i-1);
+        i++;
+      } else {
+        i++;
+      }
+    }
+    return this;
+  }
+  toString() {
     /* Outputs an [exponent; coefficient...] list. */
-    Laurent.simplify(poly);
-    if (poly.length === 0) {
+    this.simplify();
+    if (this.length === 0) {
       return "[0; 0]";
     }
-    let minexp = poly[0][1];
+    let minexp = this[0][1];
     let coeffs = [];
-    poly.forEach(term => {
+    this.forEach(term => {
       coeffs[term[1]-minexp] = term[0];
     });
     for (let i = 0; i < coeffs.length; i++) {
@@ -302,35 +405,69 @@ let Laurent = {
       }
     }
     return "[" + minexp + "; " + coeffs + "]";
-  },
-  simplify: function(poly) {
-    // destructively simplifies the polynomial
-    poly.sort((t1, t2) => t1[1] - t2[1]);
-    let i = 0;
-    while (i < poly.length) {
-      let t1 = poly[i];
-      let sum = t1[0];
-      let j = i + 1;
-      while (j < poly.length && poly[j][1] === t1[1]) {
-        sum += poly[j][0];
-        j++;
-      }
-      if (sum === 0) {
-        poly.splice(i, j-i);
-      } else if (j > i + 1) {
-        poly[i] = [sum, t1[1]];
-        poly.splice(i+1, j-i-1);
-        i++;
+  }
+  toPolyString(variable="t") {
+    this.simplify();
+    if (this.length === 0) {
+      return "0";
+    }
+    let s = "";
+    for (let i = this.length-1; i >= 0; i--) {
+      let term = this[i];
+      if (term[0] > 0) {
+        if (s.length !== 0) {
+          s += " + ";
+        }
+        if (term[0] === 1 && term[1] === 0) {
+          s += "1";
+        } else {
+          if (term[0] !== 1) {
+            s += term[0];
+          }
+          if (term[1] !== 0) {
+            s += variable;
+            if (term[1] !== 1) {
+              s += "^" + term[1];
+            }
+          }
+        }
+      } else if (term[0] === -1) {
+        if (s.length === 0) {
+          s += "-";
+        } else {
+          s += " - ";
+        }
+        if (term[1] === 0) {
+          s += "1";
+        } else {
+          s += variable;
+          if (term[1] !== 1) {
+            s += "^" + term[1];
+          }
+        }
       } else {
-        i++;
+        if (s.length === 0) {
+          s += term[0];
+        } else {
+          s += " - " + (-term[0]);
+        }
+        if (term[1] !== 0) {
+          s += variable;
+          if (term[1] !== 1) {
+            s += "^" + term[1];
+          }
+        }
       }
     }
-    return poly;
-  },
-  add: function(p1, p2, c=1, exp_offset=0) {
+    return s;
+  }
+
+  add(p2, c=1, exp_offset=0) {
     /* assumes both polynomials are simplified. returns a simplified
-       polynomial. calculates p1 + c*p2*t^exp_offset. */
-    let p = [];
+       polynomial. calculates this + c*p2*t^exp_offset. */
+    assert(p2 instanceof Laurent);
+    let p1 = this;
+    let p = new Laurent();
     let i1 = 0, i2 = 0;
     while (i1 < p1.length && i2 < p2.length) {
       let t1 = p1[i1], t2 = p2[i2];
@@ -357,16 +494,73 @@ let Laurent = {
       p.push([c*t2[0], t2[1]+exp_offset]);
     }
     return p;
-  },
-  mul: function (p1, p2) {
-    /* Assumes p1 and p2 are simplified. Returns p1*p2, simplified. */
-    let p = [];
+  }
+
+  mul(p2) {
+    /* Assumes this and p2 are simplified. Returns this*p2, simplified.
+       Does the grade-school algorithm using each term of p2.*/
+    assert(p2 instanceof Laurent);
+    let p = new Laurent;
     p2.forEach(t => {
-      p = Laurent.add(p, p1, t[0], t[1]);
+      p = p.add(this, t[0], t[1]);
     });
     return p;
   }
-};
+
+  coeffs() {
+    if (this.length === 0) {
+      return [];
+    } else {
+      let minexp = this[0][1];
+      let coeffs = [];
+      this.forEach(term => {
+        coeffs[term[1]-minexp] = term[0];
+      });
+      for (let i = 0; i < coeffs.length; i++) {
+        if (coeffs[i] === void 0) {
+          coeffs[i] = 0;
+        }
+      }
+      return coeffs;
+    }
+  }
+  minexp() {
+    if (this.length === 0) {
+      return 0; // or is it -Infinity?
+    } else {
+      return this[0][1];
+    }
+  }
+
+  divloop() {
+    /* Divides by -t^2-t^(-2), which is important for the Kauffman bracket. */
+
+    // divide by 1+t^4 and renormalize
+
+    if (this.length === 0) {
+      return Laurent.zero;
+    }
+
+    let coeffs = this.coeffs();
+    let minexp = this.minexp();
+    let q = new Laurent();
+    let state = [0,0,0,0];
+    for (let i = 0; i < coeffs.length; i++) {
+      let a = coeffs[i] - state[3];
+      state.pop();
+      state.unshift(a);
+      if (a !== 0) {
+        q.push(new LTerm(-a, i + minexp + 2));
+      }
+    }
+    assert(state.every(x => x === 0));
+    return q;
+  }
+}
+Laurent.zero = new Laurent();
+Laurent.unit = new Laurent(new LTerm(1,0));
+Laurent.t = new Laurent(new LTerm(1,1));
+Laurent.tinv = new Laurent(new LTerm(1,-1));
 
 // A TL element is [[laurent coeff, [[e1,e2],[e1,e2],...]],...]
 function tl_order(pl1, pl2) {
@@ -384,10 +578,11 @@ function tl_order(pl1, pl2) {
   }
   return 0;
 }
+let TL_loop = new Laurent(new LTerm(-1, -2), new LTerm(-1, 2));
 let TL = {
   unit: [[Laurent.unit, []]],
   toString: function (tl) {
-    return "TL[" + tl.map(term => Laurent.toString(term[0]) + " " + term[1].map(p => "P[" + p + "]").join(" ") + "]").join(" + ") + "]";
+    return "TL[" + tl.map(term => term[0] + " " + term[1].map(p => "P[" + p + "]").join(" ") + "]").join(" + ") + "]";
   },
   simplify: function (tl) {
     /* Destructively simplify tl */
@@ -400,7 +595,7 @@ let TL = {
       while (i < paths.length) {
         let p1 = paths[i];
         if (p1[0] === p1[1]) { // self-loop
-          coeff = Laurent.mul(coeff, [[-1,-2],[-1,2]]);
+          coeff = coeff.mul(TL_loop);
           paths.splice(i, 1);
           continue main_loop;
         }
@@ -439,7 +634,7 @@ let TL = {
       let sum = term[0];
       let j = i + 1;
       while (j < tl.length && tl_order(term[1], tl[j][1]) === 0) {
-        sum = Laurent.add(sum, tl[j][0]);
+        sum = sum.add(tl[j][0]);
         j++;
       }
       if (sum.length === 0) {
@@ -460,7 +655,7 @@ let TL = {
     let tl = [];
     tl1.forEach(term1 => {
       tl2.forEach(term2 => {
-        tl.push([Laurent.mul(term1[0], term2[0]),
+        tl.push([term1[0].mul(term2[0]),
                  term1[1].concat(term2[1])]);
       });
     });
@@ -468,7 +663,7 @@ let TL = {
   }
 };
 
-//// Knot UI
+///// Knot UI
 
 function UndoStack() {
   this.versions = []; // a list of Views
@@ -1980,11 +2175,17 @@ KnotDiagramGraph.def_methods({
          c \ / b
             /
          d / \ a
+
+       Chooses edge ids in ascending order of component. Makes sure d -> b is the orientation.
+       If oriented=true, then Xr/Xl are used to determine the orientation of a--c.
     */
     let dart_arc = new Map();
     let next_arc_id = 1;
     let pd = [];
-    for (let i = 0; i < this.edges.length; i++) {
+    let edge_ids = this.edges.map((edge, i) => i);
+    edge_ids.sort((i1, i2) => this.edges[i1][2] - this.edges[i2][2]);
+    for (let ii = 0; ii < edge_ids.length; ii++) {
+      let i = edge_ids[ii];
       if (dart_arc.has(i + 1)) {
         continue;
       }
@@ -2040,9 +2241,6 @@ KnotDiagramGraph.def_methods({
 
 function kauffman_bracket(pd) {
   /* Computes the Kauffman bracket from the given pd. */
-  let d = [[-1,-2],[-1,2]]; // loop is -A^2-A^-2
-  let A = [[1,1]];
-  let Ainv = [[1,-1]];
   let frontier = [];
   let bracket = TL.unit;
   while (pd.length > 0) {
@@ -2069,8 +2267,8 @@ function kauffman_bracket(pd) {
       tl = [[Laurent.unit, [[entity[0], entity[1]]]]];
     } else {
       console.log("!! " + entity);
-      tl = [[A, [[entity[0], entity[1]], [entity[2], entity[3]]]],
-            [Ainv, [[entity[0], entity[3]], [entity[1], entity[2]]]]];
+      tl = [[Laurent.t, [[entity[0], entity[1]], [entity[2], entity[3]]]],
+            [Laurent.tinv, [[entity[0], entity[3]], [entity[1], entity[2]]]]];
     }
     console.log(tl.toString());
     console.log(entity.toString() + " => " + TL.toString(tl));
@@ -2093,7 +2291,7 @@ function kauffman_bracket(pd) {
   } else {
     assert(bracket[0][1].length === 0);
     let coeff = bracket[0][0];
-    return coeff;
+    return coeff.divloop();
   }
 }
 
@@ -2372,13 +2570,24 @@ KnotDiagramView.def_methods({
     }
 
     $div.append(Q.create("p")
-                .append("Planar diagram:")
+                .append("PD:")
                 .append(Q.create("br"))
-                .append("PD[" + this.diagram.get_pd().join(", ") + "]"));
+                .append(Q.create("textarea")
+                        .attr("readonly", true)
+                        .addClass("code-data")
+                        .append("PD[" + this.diagram.get_pd().join(", ") + "]")));
     $div.append(Q.create("p")
-                .append("Oriented diagram:")
+                .append("Oriented PD:")
                 .append(Q.create("br"))
-                .append("PD[" + this.diagram.get_pd(true).join(", ") + "]"));
+                .append(Q.create("textarea")
+                        .attr("readonly", true)
+                        .addClass("code-data")
+                        .append("PD[" + this.diagram.get_pd(true).join(", ") + "]")));
+
+    $div.append(Q.create("p")
+                .append("Kauffman bracket:")
+                .append(Q.create("div")
+                        .append(kauffman_bracket(this.diagram.get_pd()).toPolyString("A"))));
     
     return $div;
   },

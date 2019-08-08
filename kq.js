@@ -141,6 +141,16 @@ var Q = (function () {
     }
     return this;
   };
+  Q.prototype.attr = function (k, /*opt*/v) {
+    if (arguments.length === 1) {
+      return this[0].getAttribute(k);
+    } else {
+      for (var i = 0; i < this.length; i++) {
+        this[i].setAttribute(k, v);
+      }
+      return this;
+    }
+  };
   Q.prototype.prop = function (k, /*opt*/v) {
     if (arguments.length === 1) {
       return this[0][k];

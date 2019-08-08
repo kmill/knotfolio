@@ -6,12 +6,20 @@
     <script src="knot.js"></script>
   </head>
   <body>
-    <div id="undo">
-      <input type="button" class="undo" value="&lt;" title="Undo">
-      <span class="undo-state">1/10</span>
-      <input type="button" class="redo" value="&gt;" title="Redo">
-    </div>
     <table id="ui-table">
+      <tr>
+        <td>
+          <div id="header">
+            <div id="project-name">LinkEdit</div>
+            <div id="undo">
+              <input type="button" class="undo" value="&lt;" title="Undo">
+              <span class="undo-state">1/10</span>
+              <input type="button" class="redo" value="&gt;" title="Redo">
+            </div>
+          </div>
+
+        </td>
+      </tr>
       <tr>
         <td>
           <div id="editor">

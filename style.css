@@ -2,9 +2,20 @@ body {
     background: #ccc;
 }
 
-#undo {
+#header {
     padding-bottom: 2px;
+}
+#project-name {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: sans-serif;
+}
+
+#undo {
+    float:right;
     user-select: none;
+    display: inline-block;
 }
 
 #ui-table td {
@@ -16,6 +27,7 @@ body {
     width: 400px;
     background: #eee;
     border: 1px solid #000;
+    font-size: 11pt;
 }
 #tools {
     padding: 4px;
@@ -95,4 +107,11 @@ canvas {
 #diag-info table.linking-matrix td {
     padding: 2px 3px;
     text-align: center;
+}
+
+textarea.code-data {
+    background: #f6f6f6;
+    font-size: 10px;
+    font-family: monospace;
+    width: 95%;
 }
