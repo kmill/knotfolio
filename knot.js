@@ -379,7 +379,7 @@ class Laurent extends SimpleType {
       if (sum === 0) {
         this.splice(i, j-i);
       } else if (j > i + 1) {
-        this[i] = [sum, t1[1]];
+        this[i] = new LTerm(sum, t1[1]);
         this.splice(i+1, j-i-1);
         i++;
       } else {
@@ -406,29 +406,36 @@ class Laurent extends SimpleType {
     }
     return "[" + minexp + "; " + coeffs + "]";
   }
-  toPolyString(variable="t") {
+  toPolyString(variable="t", exp_divisor=1) {
     this.simplify();
     if (this.length === 0) {
       return "0";
     }
     let s = "";
+    function form_exp(exp) {
+      if (exp === 1) {
+        return "";
+      } else if (Math.floor(exp) === exp) {
+        return "^"+exp;
+      } else {
+        return "^("+(exp*exp_divisor)+"/"+exp_divisor+")";
+      }
+    }
     for (let i = this.length-1; i >= 0; i--) {
       let term = this[i];
+      let exp = term[1]/exp_divisor;
       if (term[0] > 0) {
         if (s.length !== 0) {
           s += " + ";
         }
-        if (term[0] === 1 && term[1] === 0) {
+        if (term[0] === 1 && exp === 0) {
           s += "1";
         } else {
           if (term[0] !== 1) {
             s += term[0];
           }
-          if (term[1] !== 0) {
-            s += variable;
-            if (term[1] !== 1) {
-              s += "^" + term[1];
-            }
+          if (exp !== 0) {
+            s += variable + form_exp(exp);
           }
         }
       } else if (term[0] === -1) {
@@ -437,13 +444,10 @@ class Laurent extends SimpleType {
         } else {
           s += " - ";
         }
-        if (term[1] === 0) {
+        if (exp === 0) {
           s += "1";
         } else {
-          s += variable;
-          if (term[1] !== 1) {
-            s += "^" + term[1];
-          }
+          s += variable + form_exp(exp);
         }
       } else {
         if (s.length === 0) {
@@ -451,11 +455,8 @@ class Laurent extends SimpleType {
         } else {
           s += " - " + (-term[0]);
         }
-        if (term[1] !== 0) {
-          s += variable;
-          if (term[1] !== 1) {
-            s += "^" + term[1];
-          }
+        if (exp !== 0) {
+          s += variable + form_exp(exp);
         }
       }
     }
@@ -475,12 +476,12 @@ class Laurent extends SimpleType {
         p.push(t1);
         i1++;
       } else if (t1[1] > t2[1]+exp_offset) {
-        p.push([c*t2[0], t2[1]+exp_offset]);
+        p.push(new LTerm(c*t2[0], t2[1]+exp_offset));
         i2++;
       } else {
         let sum = t1[0]+c*t2[0];
         if (sum !== 0) {
-          p.push([sum, t1[1]]);
+          p.push(new LTerm(sum, t1[1]));
         }
         i1++;
         i2++;
@@ -491,7 +492,7 @@ class Laurent extends SimpleType {
     }
     for (; i2 < p2.length; i2++) {
       let t2 = p2[i2];
-      p.push([c*t2[0], t2[1]+exp_offset]);
+      p.push(new LTerm(c*t2[0], t2[1]+exp_offset));
     }
     return p;
   }
@@ -503,6 +504,18 @@ class Laurent extends SimpleType {
     let p = new Laurent;
     p2.forEach(t => {
       p = p.add(this, t[0], t[1]);
+    });
+    return p;
+  }
+  simple_mul(c, exp) {
+    /* Computes c*this*t^exp. */
+    assert(typeof c === "number" && typeof exp === "number");
+    if (c === 0) {
+      return Laurent.zero;
+    }
+    let p = new Laurent();
+    this.forEach(t => {
+      p.push(new LTerm(c*t[0], exp+t[1]));
     });
     return p;
   }
@@ -2295,6 +2308,24 @@ function kauffman_bracket(pd) {
   }
 }
 
+function jones_poly(diagram) {
+  /* Computes the Jones polynomial from a KnotDiagramGraph. Returns a polynomial in T=t^2. */
+  assert(diagram instanceof KnotDiagramGraph);
+  let kb = kauffman_bracket(diagram.get_pd());
+  let wr = diagram.writhe();
+  let normalized_kb = kb.simple_mul(Math.pow(-1, wr), -3*wr);
+  // The following polynomial is in T=t^2.
+  let jp = new Laurent();
+  for (let i = normalized_kb.length - 1; i >= 0; i--) {
+    let term = normalized_kb[i];
+    let new_exp = -term[1]/2;
+    if (new_exp !== Math.floor(new_exp)) debugger;
+    assert(new_exp === Math.floor(new_exp));
+    jp.push(new LTerm(term[0], new_exp));
+  }
+  return jp;
+}
+
 function KnotDiagramView(width, height, diagram) {
   assert(width > 0);
   assert(height > 0);
@@ -2504,6 +2535,38 @@ KnotDiagramView.def_methods({
       }
     });
 
+    let $mirror = Q.create("input")
+        .prop("type", "button")
+        .value("Mirror")
+        .prop("title", "Change the types of all crossings")
+        .appendTo($div);
+    $mirror.on("click", e => {
+      let view = this.copy();
+      view.diagram.adj.forEach(a => {
+        a.push(a.shift());
+      });
+      undo_stack.push(view);
+    });
+
+    let $invert = Q.create("input")
+        .prop("type", "button")
+        .value("Invert")
+        .prop("title", "Change orientations of each component")
+        .appendTo($div);
+    $invert.on("click", e => {
+      let view = this.copy();
+      view.diagram.edges.forEach(edge => {
+        let t_vert = edge[0];
+        edge[0] = edge[1];
+        edge[1] = t_vert;
+      });
+      view.diagram.adj = view.diagram.adj.map(a => a.map(d => -d));
+      undo_stack.push(view);
+    });
+    
+
+    $div.append(Q.create("br"));
+
     let $to_drawing = Q.create("input")
         .prop("type", "button")
         .value("Convert to drawing")
@@ -2588,6 +2651,12 @@ KnotDiagramView.def_methods({
                 .append("Kauffman bracket:")
                 .append(Q.create("div")
                         .append(kauffman_bracket(this.diagram.get_pd()).toPolyString("A"))));
+
+    $div.append(Q.create("p")
+                .append("Jones polynomial:")
+                .append(Q.create("div")
+                        .append(jones_poly(this.diagram).toPolyString("t", 2))));
+
     
     return $div;
   },
