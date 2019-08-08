@@ -32,6 +32,7 @@ const palette = [
 
 function assert(b) {
   if (!b) {
+    debugger;
     throw new Error("assertion failed");
   }
 }
@@ -93,7 +94,9 @@ function compare(a, b) {
   /* Returns "a - b" for comparison purposes. */
   assert(typeof a === typeof b);
   if (typeof a === "object") {
-    if (a instanceof Array) {
+    if (a.compare) {
+      return a.compare(b);
+    } else if (a instanceof Array) {
       assert(b instanceof Array);
       if (a.length !== b.length) {
         return a.length - b.length;
@@ -103,8 +106,9 @@ function compare(a, b) {
         if (c !== 0) return c;
       }
       return 0;
+    } else {
+      throw new TypeError;
     }
-    return a.compare(b);
   } else if (typeof a === "number" || typeof a === "boolean") {
     return a - b;
   } else if (typeof a === "string") {
@@ -116,16 +120,61 @@ function compare(a, b) {
   }
 }
 
+function escapeChar(c) {
+  switch (c) {
+  case "\0": return "\\0";
+  case "\"": return "\\\"";
+  case "\\": return "\\\\";
+  case "\n": return "\\n";
+  case "\r": return "\\r";
+  case "\v": return "\\v";
+  case "\t": return "\\t";
+  case "\b": return "\\b";
+  case "\f": return "\\f";
+  }
+  var code = c.charCodeAt(0);
+  if (32 <= code && code < 127) {
+    return c;
+  } else if (code < 256) {
+    return "\\x" + (code < 0x10 ? "0" : "") + code.toString(16).toUpperCase();
+  } else {
+    return "\\u" + (code < 0x1000 ? "0" : "") + code.toString(16).toUpperCase();
+  }
+}
+
+function toString(o) {
+  if (o instanceof Array && o.toString === Array.prototype.toString) {
+    return "[" + o.map(toString).join(", ") + "]";
+  } else if (typeof o === "object") {
+    return o.toString();
+  } else if (typeof o === "string") {
+    let s = "'";
+    for (let i = 0; i < o.length; i++) {
+      s += escapeChar(o.charAt(i));
+    }
+    return s + "'";
+  } else {
+    return ''+o;
+  }
+}
+
 class SimpleType extends Array {
   /* A Mathematica-like type where the "head" is the constructor. */
   constructor() {
-    super();
-    for (let i = 0; i < arguments.length; i++) {
-      this.push(arguments[i]);
+    /* Extremely annoyingly, the Array constructor with one argument
+       means to construct an array of a particular size.  This object
+       must comply.  Use the make static method instead. */
+    if (arguments.length === 1) {
+      super(arguments[0]);
+    } else {
+      super(arguments.length);
+      for (let i = 0; i < arguments.length; i++) {
+        this[i] = arguments[i];
+      }
     }
   }
   equal(b) {
-    assert(b instanceof self.constructor);
+    assert(b instanceof this.constructor);
     if (this.length !== b.length)
       return false;
     for (let i = 0; i < this.length; i++) {
@@ -135,7 +184,7 @@ class SimpleType extends Array {
     return true;
   }
   compare(b) {
-    assert(b instanceof self.constructor);
+    assert(b instanceof this.constructor);
     if (this.length !== b.length)
       return this.length - b.length;
     for (let i = 0; i < this.length; i++) {
@@ -145,7 +194,16 @@ class SimpleType extends Array {
     return 0;
   }
   toString() {
-    return this.constructor.name + "(" + this.join(", ") + ")";
+    return this.constructor.name + ".make(" + this.map(toString).join(", ") + ")";
+  }
+
+  static make(/*args*/) {
+    /* A sane constructor. */
+    let o = new this(arguments.length);
+    for (let i = 0; i < arguments.length; i++) {
+      o[i] = arguments[i];
+    }
+    return o;
   }
 }
 
@@ -362,9 +420,9 @@ class LTerm extends SimpleType {}
 
 class Laurent extends SimpleType {
   copy() {
-    return new Laurent(...this); // since terms are never modified
+    return this.slice(); // ok since terms are immutable
   }
-  simplify() {
+  normalize() {
     /* Destructively simplify the polynomial */
     this.sort((t1, t2) => t1[1] - t2[1]);
     let i = 0;
@@ -379,8 +437,10 @@ class Laurent extends SimpleType {
       if (sum === 0) {
         this.splice(i, j-i);
       } else if (j > i + 1) {
-        this[i] = new LTerm(sum, t1[1]);
-        this.splice(i+1, j-i-1);
+        this[i] = LTerm.make(sum, t1[1]);
+        if (j-i-1 > 0) {
+          this.splice(i+1, j-i-1);
+        }
         i++;
       } else {
         i++;
@@ -390,7 +450,7 @@ class Laurent extends SimpleType {
   }
   toString() {
     /* Outputs an [exponent; coefficient...] list. */
-    this.simplify();
+    this.normalize();
     if (this.length === 0) {
       return "[0; 0]";
     }
@@ -407,7 +467,7 @@ class Laurent extends SimpleType {
     return "[" + minexp + "; " + coeffs + "]";
   }
   toPolyString(variable="t", exp_divisor=1) {
-    this.simplify();
+    this.normalize();
     if (this.length === 0) {
       return "0";
     }
@@ -468,7 +528,7 @@ class Laurent extends SimpleType {
        polynomial. calculates this + c*p2*t^exp_offset. */
     assert(p2 instanceof Laurent);
     let p1 = this;
-    let p = new Laurent();
+    let p = Laurent.make();
     let i1 = 0, i2 = 0;
     while (i1 < p1.length && i2 < p2.length) {
       let t1 = p1[i1], t2 = p2[i2];
@@ -476,12 +536,12 @@ class Laurent extends SimpleType {
         p.push(t1);
         i1++;
       } else if (t1[1] > t2[1]+exp_offset) {
-        p.push(new LTerm(c*t2[0], t2[1]+exp_offset));
+        p.push(LTerm.make(c*t2[0], t2[1]+exp_offset));
         i2++;
       } else {
         let sum = t1[0]+c*t2[0];
         if (sum !== 0) {
-          p.push(new LTerm(sum, t1[1]));
+          p.push(LTerm.make(sum, t1[1]));
         }
         i1++;
         i2++;
@@ -492,7 +552,7 @@ class Laurent extends SimpleType {
     }
     for (; i2 < p2.length; i2++) {
       let t2 = p2[i2];
-      p.push(new LTerm(c*t2[0], t2[1]+exp_offset));
+      p.push(LTerm.make(c*t2[0], t2[1]+exp_offset));
     }
     return p;
   }
@@ -501,7 +561,7 @@ class Laurent extends SimpleType {
     /* Assumes this and p2 are simplified. Returns this*p2, simplified.
        Does the grade-school algorithm using each term of p2.*/
     assert(p2 instanceof Laurent);
-    let p = new Laurent;
+    let p = Laurent.make();
     p2.forEach(t => {
       p = p.add(this, t[0], t[1]);
     });
@@ -513,9 +573,9 @@ class Laurent extends SimpleType {
     if (c === 0) {
       return Laurent.zero;
     }
-    let p = new Laurent();
+    let p = Laurent.make();
     this.forEach(t => {
-      p.push(new LTerm(c*t[0], exp+t[1]));
+      p.push(LTerm.make(c*t[0], exp+t[1]));
     });
     return p;
   }
@@ -556,24 +616,24 @@ class Laurent extends SimpleType {
 
     let coeffs = this.coeffs();
     let minexp = this.minexp();
-    let q = new Laurent();
+    let q = Laurent.make();
     let state = [0,0,0,0];
     for (let i = 0; i < coeffs.length; i++) {
       let a = coeffs[i] - state[3];
       state.pop();
       state.unshift(a);
       if (a !== 0) {
-        q.push(new LTerm(-a, i + minexp + 2));
+        q.push(LTerm.make(-a, i + minexp + 2));
       }
     }
     assert(state.every(x => x === 0));
     return q;
   }
 }
-Laurent.zero = new Laurent();
-Laurent.unit = new Laurent(new LTerm(1,0));
-Laurent.t = new Laurent(new LTerm(1,1));
-Laurent.tinv = new Laurent(new LTerm(1,-1));
+Laurent.zero = Laurent.make();
+Laurent.unit = Laurent.make(LTerm.make(1,0));
+Laurent.t = Laurent.make(LTerm.make(1,1));
+Laurent.tinv = Laurent.make(LTerm.make(1,-1));
 
 // A TL element is [[laurent coeff, [[e1,e2],[e1,e2],...]],...]
 function tl_order(pl1, pl2) {
@@ -591,90 +651,446 @@ function tl_order(pl1, pl2) {
   }
   return 0;
 }
-let TL_loop = new Laurent(new LTerm(-1, -2), new LTerm(-1, 2));
-let TL = {
-  unit: [[Laurent.unit, []]],
-  toString: function (tl) {
-    return "TL[" + tl.map(term => term[0] + " " + term[1].map(p => "P[" + p + "]").join(" ") + "]").join(" + ") + "]";
-  },
-  simplify: function (tl) {
-    /* Destructively simplify tl */
-    tl.forEach(term => {
-      // look for matching path indices in term[1]
-      let coeff = term[0],
-          paths = term[1];
-      let i = 0;
-      main_loop:
-      while (i < paths.length) {
-        let p1 = paths[i];
-        if (p1[0] === p1[1]) { // self-loop
-          coeff = coeff.mul(TL_loop);
-          paths.splice(i, 1);
-          continue main_loop;
-        }
-        let j = i + 1;
-        while (j < paths.length) {
-          let p2 = paths[j];
-          for (let k1 = 0; k1 < 2; k1++) {
-            for (let k2 = 0; k2 < 2; k2++) {
-              if (p1[k1] === p2[k2]) {
-                paths[i] = [p1[1-k1], p2[1-k2]];
-                paths.splice(j,1);
-                continue main_loop;
-              }
+
+class TLPath extends SimpleType {
+  // A pair of edge ids
+  normalize() {
+    /* In-place normalization of the TLPath */
+    if (this[0] > this[1]) {
+      let t = this[0];
+      this[0] = this[1];
+      this[1] = t;
+    }
+    return this;
+  }
+}
+class TLTerm extends SimpleType {
+  // A Laurent coefficient and a [TLPath,...]
+  normalize() {
+    /* In-place normalization of the TLTerm. */
+    let coeff = this[0],
+        paths = this[1];
+    let i = 0;
+    main_loop:
+    while (i < paths.length) {
+      let p1 = paths[i];
+      if (p1[0] === p1[1]) { // self-loop
+        coeff = coeff.mul(TL.loop);
+        paths.splice(i, 1);
+        continue main_loop;
+      }
+      let j = i + 1;
+      while (j < paths.length) {
+        let p2 = paths[j];
+        for (let k1 = 0; k1 < 2; k1++) {
+          for (let k2 = 0; k2 < 2; k2++) {
+            if (p1[k1] === p2[k2]) {
+              paths[i] = TLPath.make(p1[1-k1], p2[1-k2]);
+              paths.splice(j, 1);
+              continue main_loop;
             }
           }
-          j++;
         }
-        i++;
+        j++;
       }
+      i++;
+    }
+    this[0] = coeff;
 
-      term[0] = coeff;
-      // now paths are simplified
+    // now paths are simplified
 
-      paths.forEach(p => {
-        p.sort((a, b) => a - b);
-      });
-      paths.sort((p1, p2) => p1[0] - p2[0]); // this is lexicographic since all indices are different
-      
-    });
+    paths.forEach(p => p.normalize());
+    paths.sort((p1, p2) => p1[0] - p2[0]); // this is lexicographic since all indices are different
 
-    tl.sort((term1, term2) => tl_order(term1[1], term2[1]));
+    return this;
+  }
+}
+class TL extends SimpleType {
+  // A list of TLTerms
+  copy() {
+    return this.slice(); // ok since normalization keeps the term "the same"
+  }
+  normalize() {
+    /* In-place normalization of the TL. */
+    this.forEach(term => term.normalize());
+    this.sort((term1, term2) => compare(term1[1], term2[1]));
 
     let i = 0;
-    while (i < tl.length) {
-      let term = tl[i];
+    while (i < this.length) {
+      let term = this[i];
       let sum = term[0];
       let j = i + 1;
-      while (j < tl.length && tl_order(term[1], tl[j][1]) === 0) {
-        sum = sum.add(tl[j][0]);
+      while (j < this.length && compare(term[1], this[j][1]) === 0) {
+        sum = sum.add(this[j][0]);
         j++;
       }
       if (sum.length === 0) {
-        tl.splice(i, j-i);
+        this.splice(i, j-i);
       } else {
         term[0] = sum;
-        tl.splice(i+1, j-i-1);
+        if (j-i-1 > 0) {
+          this.splice(i+1, j-i-1);
+        }
         i++;
       }
     }
-    return tl;
-  },
-  add: function (tl1, tl2) {
-    let tl = tl1.concat(tl2);
-    return TL.simplify(tl);
-  },
-  mul: function (tl1, tl2) {
-    let tl = [];
-    tl1.forEach(term1 => {
+
+    return this;
+  }
+
+  add(tl2) {
+    assert(tl2 instanceof TL);
+    return this.concat(tl2).normalize();
+  }
+
+  mul(tl2) {
+    assert(tl2 instanceof TL);
+    let tl = TL.make();
+    this.forEach(term1 => {
       tl2.forEach(term2 => {
-        tl.push([term1[0].mul(term2[0]),
-                 term1[1].concat(term2[1])]);
+        tl.push(TLTerm.make(term1[0].mul(term2[0]),
+                            term1[1].concat(term2[1])));
       });
     });
-    return TL.simplify(tl);
+    return tl.normalize();
   }
-};
+}
+TL.unit = TL.make(TLTerm.make(Laurent.unit, []));
+TL.loop = Laurent.make(LTerm.make(-1, -2), LTerm.make(-1, 2));
+
+
+class FGWord extends SimpleType {
+  /* A FGWord is gen,exp,gen,exp,... where the exponents are numbers
+     and the generators are tested by ===. */
+  normalize() {
+    /* Reduce the freegroup word.  Accepts FGWords inside the FGWord in place of generators,
+       which are spliced in. (In Mathematica-speak, this symbol is flattenable.)*/
+    let i = 0;
+    while (i < this.length) {
+      if (this[i] instanceof FGWord) {
+        let w = this[i];
+        let exp = this[i+1];
+        if (exp < 0) {
+          w = w.inverse();
+          exp = -exp;
+        }
+        this.splice(i, 2);
+        for (let k = 0; k < exp; k++) {
+          this.splice(i, 0, ...w);
+        }
+        i = Math.max(0, i - 2);
+        continue;
+      }
+      let exp = this[i+1];
+      let j = i+2;
+      while (j < this.length && this[i] === this[j]) {
+        exp += this[j+1];
+        j += 2;
+      }
+      if (exp === 0) {
+        this.splice(i, j-i);
+        i = Math.max(0, i - 2);
+      } else {
+        this[i+1] = exp;
+        if (j-i-2 > 0) {
+          this.splice(i+2, j-i-2);
+        }
+        i += 2;
+      }
+    }
+    assert(i === this.length);
+    return this;
+  }
+
+  normalize_conj() {
+    /* Reduce the word, allowing conjugation and inversion, putting it into a normal form. Returns a new word. */
+    let w = this.slice();
+    while (true) {
+      w.normalize();
+      if (w.length > 2) {
+        if (w[0] === w[w.length-2]) {
+          // Can conjugate to move end to front
+          w[1] += w[w.length-1];
+          w.length = w.length - 2;
+          continue;
+        }
+      }
+      break;
+    }
+    if (w.length === 0) {
+      return FGWord.make();
+    }
+    let shifts = [];
+    for (let i = 0; i < w.length; i += 2) {
+      let sw = w.slice(i).concat(w.slice(0, i));
+      shifts.push(sw);
+      shifts.push(sw.inverse());
+    }
+    shifts.sort(compare);
+    return shifts[0];
+  }
+
+  inverse() {
+    let w = FGWord.make();
+    for (let i = this.length-2; i >= 0; i -= 2) {
+      w.push(this[i], -this[i+1]);
+    }
+    return w;
+  }
+
+  fox_deriv(gen) {
+    /* Returns an FGA of the Fox derivative with respect to gen. */
+    if (this.length === 0) {
+      return FGA.zero;
+    } else if (this.length === 2 && this[1] === 1) {
+      return gen === this[0] ? FGA.unit : FGA.zero;
+    } else if (this.length === 2 && this[1] === -1) {
+      if (gen === this[0]) {
+        return FGA.make([-1, FGWord.make(this[0], -1)]);
+      } else {
+        return FGA.zero;
+      }
+    } else {
+      let u = this.slice(0,2), v = this.slice(2);
+      if (v.length === 0) {
+        v.push(u[0], u[1]-Math.sign(u[1]));
+        u[1] = Math.sign(u[1]);
+      }
+      return u.fox_deriv(gen)
+        .add(FGA.make([1,u]).mul(v.fox_deriv(gen)));
+    }
+  }
+
+  substitute(g, val) {
+    /* If g is a function, for each generator for which g is true,
+       replace with val.  Otherwise, do the same by checking === with g. */
+    let w = this.slice();
+    for (let i = 0; i < this.length; i += 2) {
+      if ((g instanceof Function && g(w[i])) || g === w[i]) {
+        w[i] = val;
+      }
+    }
+    return w.normalize();
+  }
+}
+
+class FGA extends SimpleType {
+  /* A list of terms, which are [coeff,FGWord] pairs. */
+
+  static gen(g, exp=1, c=1) {
+    let x = FGA.make([c,FGWord.make(g, exp)]);
+    return x.normalize();
+  }
+
+  normalize() {
+    this.forEach(term => term[1].normalize());
+    this.sort((term1, term2) => compare(term1[1], term2[1]));
+
+    let i = 0;
+    while (i < this.length) {
+      let term = this[i];
+      let sum = term[0];
+      let j = i + 1;
+      while (j < this.length && compare(term[1], this[j][1]) === 0) {
+        sum += this[j][0];
+        j++;
+      }
+      if (sum.length === 0) {
+        this.splice(i, j-i);
+      } else {
+        term[0] = sum;
+        if (j-i-1 > 0) {
+          this.splice(i+1, j-i-1);
+        }
+        i++;
+      }
+    }
+
+    return this;
+  }
+
+  scale(c) {
+    assert(typeof c === "number");
+    if (c === 0) {
+      return FGA.zero;
+    }
+    let w = FGA.make();
+    this.forEach(term => {
+      w.push([term[0]*c, term[1]]);
+    });
+    return w;
+  }
+
+  add(w2) {
+    assert(w2 instanceof FGA);
+    return this.concat(w2).normalize();
+  }
+
+  mul(w2) {
+    assert(w2 instanceof FGA);
+    let w = FGA.make();
+    this.forEach(term1 => {
+      w2.forEach(term2 => {
+        w.push([term1[0] * term2[0],
+                term1[1].concat(term2[1])]);
+      });
+    });
+    return w.normalize();
+  }
+
+  substitute(g, val) {
+    /* Calls substitute for each term. */
+    return this.map(term => [term[0], term[1].substitute(g, val)]).normalize();
+  }
+
+  toLaurent() {
+    let p = Laurent.make();
+    this.forEach(term => {
+      let exp = 0;
+      for (let i = 0; i < term[1].length; i += 2) {
+        exp += term[1][i+1];
+      }
+      p.push(LTerm.make(term[0], exp));
+    });
+    return p.normalize();
+  }
+}
+FGA.zero = FGA.make();
+FGA.unit = FGA.make([1,FGWord.make()]);
+
+
+function wirtinger_presentation(pd) {
+  /* Returns the wirtinger presentation from an oriented PD */
+  let gens = []; // names of generators
+  let rels = [];
+  pd.forEach(entity => {
+    entity.forEach(i => {
+      if (gens[i] === void 0) {
+        gens[i] = "x" + i;
+      }
+    });
+    if (entity instanceof PD_P) {
+      let a = gens[entity[0]],
+          b = gens[entity[1]];
+      rels.push(FGWord.make(a, 1, b, -1));
+    } else if (entity instanceof PD_Xr) {
+      let a = gens[entity[0]],
+          b = gens[entity[1]],
+          c = gens[entity[2]],
+          d = gens[entity[3]];
+      rels.push(FGWord.make(d, 1, b, -1));
+      rels.push(FGWord.make(c, 1, b, 1, a, -1, d, -1));
+    } else if (entity instanceof PD_Xl) {
+      let b = gens[entity[0]],
+          c = gens[entity[1]],
+          d = gens[entity[2]],
+          a = gens[entity[3]];
+      rels.push(FGWord.make(a, 1, c, -1));
+      rels.push(FGWord.make(c, 1, b, 1, a, -1, d, -1));
+    } else {
+      throw new TypeError;
+    }
+  });
+
+  let removed_gens = new Set();
+  simplification_round:
+  while (true) {
+    //console.log("rels " + toString(rels));
+    // Remove empty words
+    rels = rels.map(r => r.normalize_conj()).filter(word => word.length > 0);
+    // and duplicates
+    rels.sort(compare);
+    let i = 0;
+    while (i + 1 < rels.length) {
+      if (compare(rels[i], rels[i+1]) === 0) {
+        rels.splice(i+1,1);
+      } else {
+        i++;
+      }
+    }
+    //console.log("  -> " + toString(rels));
+
+    // Look for a relation that gives a generator in terms of other generators
+    for (let i = 0; i < rels.length; i++) {
+      let rel = rels[i];
+      try_next_g:
+      for (let j = 0; j < rel.length; j += 2) {
+        let g = rel[j];
+        if (Math.abs(rel[j+1]) === 1) {
+          for (let k = 0; k < rel.length; k += 2) {
+            if (k !== j && rel[k] === g) {
+              continue try_next_g;
+            }
+          }
+          let w = rel.slice(j+2).concat(rel.slice(0,j));
+          if (rel[j+1] === 1) {
+            w = w.inverse();
+          }
+          //console.log("from " + toString(rel) + " got " + g + " is " + toString(w));
+          removed_gens.add(g);
+          rels.splice(i, 1);
+          rels = rels.map(rel => rel.substitute(g, w));
+          continue simplification_round;
+        }
+      }
+    }
+    // Didn't find anything
+    break;
+  }
+
+  let gen_list = gens.filter(g => !removed_gens.has(g));
+  
+  return {gens: gen_list,
+          rels: rels};
+}
+
+function alexander_module(pres) {
+  /* Given a presentation {gens,rels} of a group with a homomorphism
+     to Z where each generator is sent to 1, computes a matrix for the
+     Alexander module. */
+
+  // A common approach is to use Fox derivatives, like so:
+  //   let matrix = pres.gens.map(g => pres.rels.map(rel => rel.fox_deriv(g).toLaurent()));
+  // However, an algorithmically more efficient method is to "linearize" the relations directly.
+  // This essentially means taking a relation, constructing its image in the chain group, giving
+  // a column of the matrix, rather than using derivations to compute each entry one at a time.
+
+  // matrix[i][j] is for generator i and relation j
+  let matrix = pres.gens.map(g => pres.rels.map(rel => Laurent.zero));
+
+  pres.rels.forEach((rel, j) => {
+    let ab = 0;
+    for (let k = 0; k < rel.length; k += 2) {
+      let i = pres.gens.indexOf(rel[k]);
+      let exp = Math.sign(rel[k+1]);
+      let times = Math.abs(rel[k+1]);
+      for (let n = 0; n < times; n++) {
+        let term;
+        if (exp > 0) {
+          term = Laurent.make(LTerm.make(1, ab));
+        } else {
+          term = Laurent.make(LTerm.make(-1, ab-1));
+        }
+        matrix[i][j] = matrix[i][j].add(term);
+        ab += exp;
+      }
+    }
+  });
+
+  
+  // This is not yet a presentation.  It is the matrix A in the chain complex
+  //   C_2 --A--> C_1 -----> C_0
+  // The group C_0 is Z[t,t^{-1}], and the map from C_1 is g |-> t-1.
+  // Thus, the kernel has the basis gi-g1 for i != 1.
+  //
+  // This means we can just remove a row and get a presentation matrix.
+  matrix.pop();
+
+
+
+  // representative generators pres.gens.slice(0, pres.gens.length-1)
+  return matrix;
+}
 
 ///// Knot UI
 
@@ -2277,16 +2693,17 @@ function kauffman_bracket(pd) {
     let tl = null;
     if (entity.length === 2) {
       console.log("!");
-      tl = [[Laurent.unit, [[entity[0], entity[1]]]]];
+      tl = new TL(new TLTerm(Laurent.unit, [new TLPath(entity[0], entity[1])]));
     } else {
       console.log("!! " + entity);
-      tl = [[Laurent.t, [[entity[0], entity[1]], [entity[2], entity[3]]]],
-            [Laurent.tinv, [[entity[0], entity[3]], [entity[1], entity[2]]]]];
+      tl = new TL(new TLTerm(Laurent.t, [new TLPath(entity[0], entity[1]),
+                                         new TLPath(entity[2], entity[3])]),
+                  new TLTerm(Laurent.tinv, [new TLPath(entity[0], entity[3]),
+                                            new TLPath(entity[1], entity[2])]));
     }
-    console.log(tl.toString());
-    console.log(entity.toString() + " => " + TL.toString(tl));
-    bracket = TL.mul(bracket, tl);
-    console.log("bracket: " + TL.toString(bracket));
+    console.log(entity.toString() + " => " + tl.toString());
+    bracket = bracket.mul(tl);
+    console.log("bracket: " + bracket.toString());
 
     // update frontier
     entity.forEach(i => {
@@ -2657,6 +3074,22 @@ KnotDiagramView.def_methods({
                 .append(Q.create("div")
                         .append(jones_poly(this.diagram).toPolyString("t", 2))));
 
+    let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
+    $alex_mod.append(Q.create("br"));
+    {
+      let wp = wirtinger_presentation(this.diagram.get_pd(true));
+      console.log("Wirtinger: " + toString(wp.rels));
+      let matrix = alexander_module(wp);
+      let $table = Q.create("table").addClass("alexander-matrix");
+      matrix.forEach(row => {
+        let $tr = Q.create("tr").appendTo($table);
+        row.forEach(entry => {
+          let $td = Q.create("td").appendTo($tr);
+          $td.append(entry.toPolyString("t"));
+        });
+      });
+      $alex_mod.append($table);
+    }
     
     return $div;
   },

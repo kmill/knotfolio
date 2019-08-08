@@ -109,6 +109,17 @@ canvas {
     text-align: center;
 }
 
+#diag-info table.alexander-matrix {
+    border: 1px solid #ccc;
+}
+
+#diag-info table.alexander-matrix td {
+    padding: 2px 3px;
+    text-align: center;
+    background: #bbb;
+    font-size: 12px;
+}
+
 textarea.code-data {
     background: #f6f6f6;
     font-size: 10px;
