@@ -207,6 +207,20 @@ class SimpleType extends Array {
   }
 }
 
+function z_gcd(a, b) {
+  assert(a === Math.floor(a));
+  assert(b === Math.floor(b));
+  a = Math.abs(a);
+  b = Math.abs(b);
+  if (a < b) {
+    let c = a; a = b; b = c;
+  }
+  while (b !== 0) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
 ///// Basic geometry
 
 class Point {
@@ -597,6 +611,14 @@ class Laurent extends SimpleType {
       return coeffs;
     }
   }
+  static fromCoeffs(coeffs, offset=0) {
+    let p = Laurent.make();
+    for (let i = 0; i < coeffs.length; i++) {
+      p.push(LTerm.make(coeffs[i], i + offset));
+    }
+    return p;
+  }
+
   minexp() {
     if (this.length === 0) {
       return 0; // or is it -Infinity?
@@ -629,11 +651,107 @@ class Laurent extends SimpleType {
     assert(state.every(x => x === 0));
     return q;
   }
+
+  gcd(p2) {
+    /* Compute the gcd of two Laurent polynomials with integer coefficients */
+    assert(p2 instanceof Laurent);
+    let C1 = this.coeffs(),
+        C2 = p2.coeffs();
+    C1.forEach(c => assert(c === Math.floor(c)));
+    C2.forEach(c => assert(c === Math.floor(c)));
+
+    function cont(coeffs) {
+      /* Gives the content of the polynomial given by the coefficients */
+      return coeffs.reduce((g, c) => z_gcd(g, c), 0);
+    }
+
+    let cont_gcd = z_gcd(cont(C1), cont(C2));
+
+    // denominators for C1 and C2
+    let d1 = 1;
+    let d2 = 1;
+
+    function normalize_and_swap() {
+      while (C1.length > 0 && C1[C1.length - 1] === 0) {
+        C1.pop();
+      }
+      if (C1.length === 0) {
+        d1 = 1;
+      } else {
+        let q = cont(C1);
+        q *= Math.sign(C1[C1.length - 1]);
+        for (let i = 0; i < C1.length; i++) {
+          C1[i] /= q;
+        }
+        d1 = C1[C1.length - 1];
+      }
+      while (C2.length > 0 && C2[C2.length - 1] === 0) {
+        C2.pop();
+      }
+      if (C2.length === 0) {
+        d2 = 1;
+      } else {
+        let q = cont(C2);
+        q *= Math.sign(C2[C2.length - 1]);
+        for (let i = 0; i < C2.length; i++) {
+          C2[i] /= q;
+        }
+        d2 = C2[C2.length - 1];
+      }
+      if (C1.length < C2.length) {
+        let Ct = C1; C1 = C2; C2 = Ct;
+        let dt = d1; d1 = d2; d2 = dt;
+      }
+    }
+
+    normalize_and_swap();
+
+    while (C2.length > 0) {
+      let d = C1.length - C2.length;
+      for (let i = 0; i < C2.length; i++) {
+        C1[i+d] = d2 * C1[i+d] - d1 * C2[i];
+      }
+      normalize_and_swap();
+    }
+
+    for (let i = 0; i < C1.length; i++) {
+      C1[i] = C1[i] * cont_gcd;
+    }
+    return Laurent.fromCoeffs(C1);
+  }
 }
 Laurent.zero = Laurent.make();
 Laurent.unit = Laurent.make(LTerm.make(1,0));
 Laurent.t = Laurent.make(LTerm.make(1,1));
 Laurent.tinv = Laurent.make(LTerm.make(1,-1));
+
+function laurent_det(matrix) {
+  /* Computes the determinant of the given matrix of Laurent polynomials. */
+
+  if (matrix.length === 0) {
+    return Laurent.unit;
+  }
+  assert(matrix.length === matrix[0].length); // only square matrices
+
+  if (matrix.length === 1) {
+    return matrix[0][0];
+  }
+
+  // Do cofactor expansion over the first row.
+  let val = Laurent.zero;
+  for (let j = 0; j < matrix[0].length; j++) {
+    let c = matrix[0][j];
+    if (j % 2 === 1) {
+      c = c.simple_mul(-1, 0); // negate
+    }
+    let sub_matrix = [];
+    for (let i = 1; i < matrix.length; i++) {
+      sub_matrix.push(matrix[i].slice(0, j).concat(matrix[i].slice(j+1)));
+    }
+    val = val.add(laurent_det(sub_matrix).mul(c));
+  }
+  return val;
+}
 
 // A TL element is [[laurent coeff, [[e1,e2],[e1,e2],...]],...]
 function tl_order(pl1, pl2) {
@@ -1090,6 +1208,66 @@ function alexander_module(pres) {
 
   // representative generators pres.gens.slice(0, pres.gens.length-1)
   return matrix;
+}
+
+function simplify_presentation_matrix(matrix) {
+  /* Given a presentation matrix of Laurent polynomials over Z,
+     attempt to sort of simplify it.  We can't eaxctly do Smith Normal
+     Form because Z[t,t^{-1}] is not a PID, but we can sure try. */
+
+  throw new Error("unimplemented");
+}
+
+function alexander_polynomial(module, n=0) {
+  /* Computes the nth Alexander polynomial with the given module
+  presentation. A module is an m x k matrix, with m the number of
+  generators.  The 0th Alexander polynomial is the standard one.*/
+
+  // Need to get all k=m-n minors of matrix.module.  In particular, the
+  // determinants of all the k x k submatrices.  In more
+  // particular, the GCD of these determinants.
+
+  let k = module.length - n;
+  if (k === 0) {
+    return Laurent.unit;
+  }
+
+  let gcd = Laurent.zero;
+
+  let cur_rows = [];
+  function minor_rows(next_i) {
+    if (cur_rows.length === k) {
+      do_minor_cols(0);
+    } else {
+      for (let i = next_i; i < module.length - (k - cur_rows.length - 1); i++) {
+        cur_rows.push(module[i]);
+        minor_rows(i + 1);
+        cur_rows.pop();
+      }
+    }
+  }
+  let minor = [];
+  for (let i = 0; i < k; i++) {
+    minor.push([]);
+  }
+  function do_minor_cols(next_j) {
+    if (minor[0].length === k) {
+      gcd = gcd.gcd(laurent_det(minor));
+    } else {
+      for (let j = next_j; j < module[0].length - (k - minor[0].length - 1); j++) {
+        for (let i = 0; i < k; i++) {
+          minor[i].push(cur_rows[i][j]);
+        }
+        do_minor_cols(j + 1);
+        for (let i = 0; i < k; i++) {
+          minor[i].pop();
+        }
+      }
+    }
+  }
+
+  minor_rows(0);
+  return gcd;
 }
 
 ///// Knot UI
@@ -3080,6 +3258,7 @@ KnotDiagramView.def_methods({
       let wp = wirtinger_presentation(this.diagram.get_pd(true));
       console.log("Wirtinger: " + toString(wp.rels));
       let matrix = alexander_module(wp);
+      window.matrix = matrix;
       let $table = Q.create("table").addClass("alexander-matrix");
       matrix.forEach(row => {
         let $tr = Q.create("tr").appendTo($table);
@@ -3089,6 +3268,15 @@ KnotDiagramView.def_methods({
         });
       });
       $alex_mod.append($table);
+      $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
+
+      for (let n = 0; n < matrix.length; n++) {
+        let poly = alexander_polynomial(matrix, n);
+        $alex_mod.append(Q.create("br"));
+        $alex_mod.append("\u0394");
+        $alex_mod.append(Q.create("sup").append(''+n));
+        $alex_mod.append("(t) = " + poly.toPolyString("t"));
+      }
     }
     
     return $div;
