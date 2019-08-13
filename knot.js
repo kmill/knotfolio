@@ -1233,7 +1233,7 @@ function alexander_polynomial(module, n=0) {
   // particular, the GCD of these determinants.
 
   let k = module.length - n;
-  if (k === 0) {
+  if (k <= 0) {
     return Laurent.unit;
   }
 
@@ -1272,7 +1272,13 @@ function alexander_polynomial(module, n=0) {
   }
 
   minor_rows(0);
-  return gcd;
+
+  let coeffs = gcd.coeffs();
+  if (coeffs[0] < 0) {
+    coeffs = coeffs.map(c => -c);
+  }
+
+  return Laurent.fromCoeffs(coeffs, 0);
 }
 
 ///// Knot UI
@@ -3258,19 +3264,23 @@ let invariant_caches = new WeakMap;
 
 let invariant_handlers = {};
 
-function get_invariant(diagram, name) {
+function get_invariant(diagram, name, /* args */) {
   assert(diagram instanceof KnotDiagramGraph);
   let cache = invariant_caches.get(diagram);
-  if (cache && cache[name]) {
-    return cache[name];
+  let args = [];
+  for (let i = 2; i < arguments.length; i++) {
+    args.push(arguments[i]);
   }
-  let result = invariant_handlers[name](diagram);
+  if (cache && cache[name + toString(args)]) {
+    return cache[name + toString(args)];
+  }
+  let result = invariant_handlers[name](diagram, ...args);
   cache = invariant_caches.get(diagram);
   if (!cache) {
     cache = {};
     invariant_caches.set(diagram, cache);
   }
-  cache[name] = result;
+  cache[name + toString(args)] = result;
   return result;
 }
 
@@ -3303,6 +3313,47 @@ invariant_handlers.alexander_module = function (diagram) {
   let wp = get_invariant(diagram, 'wirtinger_presentation');
   return alexander_module(wp);
 };
+invariant_handlers.alexander_poly = function (diagram, n/*default=0*/) {
+  if (arguments.length === 1) {
+    return get_invariant(diagram, 'alexander_poly', 0);
+  }
+  let matrix = get_invariant(diagram, 'alexander_module');
+  return alexander_polynomial(matrix, n);
+};
+
+function identify_link(diagram) {
+  let max_crossing = diagram.crossing_number();
+  let alex_poly = get_invariant(diagram, 'alexander_poly').coeffs();
+  let jones_poly = get_invariant(diagram, 'jones_poly');
+  let jones_coeffs = jones_poly.coeffs();
+
+  let options = knotinfo_data.filter(o => {
+    if (o.crossing_number > max_crossing) {
+      return false;
+    }
+    if (alex_poly.length !== o.alexander.length - 1) {
+      return false;
+    }
+    for (let i = 0; i < alex_poly.length; i++) {
+      if (alex_poly[i] !== o.alexander[i+1]) {
+        return false;
+      }
+    }
+    if (jones_poly.minexp() !== o.jones[0]
+       || jones_coeffs.length !== o.jones.length-1) {
+      return false;
+    }
+    for (let i = 0; i < jones_coeffs.length; i++) {
+      if (jones_coeffs[i] !== o.jones[i+1]) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  let names = options.map(o => o.name);
+  return names;
+}
 
 function KnotDiagramView(width, height, diagram) {
   assert(width > 0);
@@ -3561,7 +3612,7 @@ KnotDiagramView.def_methods({
       undo_stack.push(view);
     });
 
-    $div.append(Q.create("h2").append("Isotopy tools"));
+/*    $div.append(Q.create("h2").append("Isotopy tools"));
 
     let $simplify = Q.create("input")
         .prop("type", "button")
@@ -3573,7 +3624,7 @@ KnotDiagramView.def_methods({
       //view.simplify();
       undo_stack.push(view);
     });
-
+*/
 
     $div.append(Q.create("hr"));
 
@@ -3690,13 +3741,24 @@ KnotDiagramView.def_methods({
       $alex_mod.append($table);
       $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
 
-      for (let n = 0; n < matrix.length; n++) {
-        let poly = alexander_polynomial(matrix, n);
+      for (let n = 0; ; n++) {
+        let poly = get_invariant(this.diagram, "alexander_poly", n);
+        if (n >= 1 && poly.equal(Laurent.unit)) {
+          break;
+        }
         $alex_mod.append(Q.create("br"));
         $alex_mod.append("\u0394");
         $alex_mod.append(Q.create("sup").append(''+n));
         $alex_mod.append("(t) = " + poly.toPolyString("t"));
       }
+    }
+
+    $div.append(Q.create("h2").append("Identification"));
+    let names = identify_link(this.diagram);
+    if (names.length === 0) {
+      $div.append(Q.create("p").append("Unknown link"));
+    } else {
+      $div.append(Q.create("p").append("Candidates: " + names.join(", ")));
     }
     
     return $div;
