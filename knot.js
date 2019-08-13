@@ -37,6 +37,11 @@ function assert(b) {
   }
 }
 
+function clamp(val, lo, hi) {
+  /* Clamps the value to the range [lo, hi]. */
+  return Math.max(lo, Math.min(hi, val));
+}
+
 function hex_to_rgb(h) {
   /* Takes an 0xrrggbb integer and outputs a "#rrggbb" string */
   let b = h & 0xFF;
@@ -1307,6 +1312,321 @@ UndoStack.def_methods({
   }
 });
 
+function KnotImageImport(width, height, img) {
+  this.img = img;
+  this.width = width;
+  this.height = height;
+
+  // displacement
+  this.x = 0;
+  this.y = 0;
+
+  this.scale = Math.min(1, Math.min(width / img.width, height / img.height));
+
+  // crop region
+  this.sx = 0;
+  this.sy = 0;
+  this.swidth = img.width;
+  this.sheight = img.height;
+
+  this.invert = false;
+  this.blur = 0;
+  this.threshold = 0.5;
+
+  this.tmp_canvas = document.createElement("canvas");
+  this.tmp_canvas.width = this.width;
+  this.tmp_canvas.height = this.height;
+  this.tmp_ctxt = this.tmp_canvas.getContext("2d");
+
+  console.log(this.scale);
+  this.mode_name = "Image importing";
+}
+KnotImageImport.tool_state = {
+  tool: "crop"
+};
+KnotImageImport.def_methods({
+  copy: function () {
+    let view = new KnotImageImport(this.width, this.height, this.img);
+    view.x = this.x;
+    view.y = this.y;
+    view.scale = this.scale;
+    view.sx = this.sx;
+    view.sy = this.sy;
+    view.swidth = this.swidth;
+    view.sheight = this.sheight;
+    view.invert = this.invert;
+    view.blur = this.blur;
+    view.threshold = this.threshold;
+    return view;
+  },
+
+  update_crop: function (pt1, pt2) {
+    let x1 = clamp(Math.min(pt1.x - this.x, pt2.x - this.x) / this.scale, 0, this.img.width),
+        x2 = clamp(Math.max(pt1.x - this.x, pt2.x - this.x) / this.scale, 0, this.img.width),
+        y1 = clamp(Math.min(pt1.y - this.y, pt2.y - this.y) / this.scale, 0, this.img.height),
+        y2 = clamp(Math.max(pt1.y - this.y, pt2.y - this.y) / this.scale, 0, this.img.height);
+
+    this.sx = x1;
+    this.sy = y1;
+    this.swidth = x2 - x1;
+    this.sheight = y2 - y1;
+  },
+
+  mousedown: function (pt, e, undo_stack, ctxt) {
+    let tool = KnotImageImport.tool_state.tool;
+    if (tool === "crop") {
+      this.crop_start = pt;
+      this.update_crop(this.crop_start, pt);
+      this.paint(ctxt);
+    } else if (tool === "move") {
+      this.move_start = pt;
+    }
+  },
+  mousemove: function (pt, e, undo_stack, ctxt) {
+    let tool = KnotImageImport.tool_state.tool;
+    if (tool === "crop") {
+      if (this.crop_start) {
+        this.update_crop(this.crop_start, pt);
+        this.paint(ctxt);
+      }
+    } else if (tool === "move") {
+      if (this.move_start) {
+        this.x += (pt.x - this.move_start.x);
+        this.y += (pt.y - this.move_start.y);
+        this.move_start = pt;
+        this.paint(ctxt);
+      }
+    }
+  },
+  mouseup: function (pt, e, undo_stack, ctxt) {
+    let tool = KnotImageImport.tool_state.tool;
+    if (tool === "crop") {
+      if (this.crop_start) {
+        this.update_crop(this.crop_start, pt);
+        this.crop_start = null;
+        this.paint(ctxt);
+      }
+    } else if (tool === "move") {
+      if (this.move_start) {
+        this.move_start = null;
+        this.paint(ctxt);
+      }
+    }
+  },
+  toolbox: function (undo_stack, ctxt) {
+    let $div = this.$div = Q.div();
+
+    let $tools = Q.div().appendTo($div);
+
+    let $move = Q.span("\u219d")
+        .addClass("icon-button")
+        .prop("data-tool", "move")
+        .prop("title", "Move image")
+        .appendTo($tools);
+
+    let $crop = Q.span("\u21f2")
+        .addClass("icon-button")
+        .prop("data-tool", "crop")
+        .prop("title", "Crop image")
+        .appendTo($tools);
+
+    this.update_tool = (toolname) => {
+      $div.query(".icon-button").forEach($e => {
+        let button_tool = $e.prop("data-tool");
+        if (typeof button_tool === "string") {
+          $e.toggleClass("active", button_tool === toolname);
+        }
+      });
+    };
+    this.update_tool(KnotImageImport.tool_state.tool);
+
+    $tools.on("click", e => {
+      let el = e.target.closest('.icon-button');
+      if (el) {
+        let tool = Q(el).prop('data-tool');
+        if (typeof tool === "string") {
+          e.preventDefault();
+          e.stopPropagation();
+          KnotImageImport.tool_state.tool = tool;
+          this.update_tool(tool);
+        }
+      }
+    });
+
+    let $scale_label = Q.create("label").append("Scale: ").prop("title", "Rescale the image");
+    $div.append($scale_label);
+    let $scale = Q.create("input")
+        .prop("type", "range")
+        .prop("min", "1")
+        .prop("max", "300")
+        .prop("step", "1")
+        .addClass("slider");
+    $scale.value(Math.floor(this.scale * 100));
+    $scale_label.append($scale);
+    $scale.on("input", e => {
+      let newScale = e.target.value / 100;
+      this.scale = newScale;
+      this.paint(ctxt);
+    });
+
+    Q.create("br").appendTo($div);
+
+    let $invert_label = Q.create("label").append("Invert colors: ")
+        .prop("title", "Invert the values of all the colors, for example if this is a chalk drawing.");
+    $div.append($invert_label);
+    let $invert = Q.create("input")
+        .prop("type", "checkbox");
+    $invert_label.append($invert);
+    $invert.on("input", e => {
+      this.invert = e.target.checked;
+      this.paint(ctxt);
+    });
+
+    Q.create("br").appendTo($div);
+
+    let $blur_label = Q.create("label").append("Blur: ").prop("title", "Blur radius");
+    $div.append($blur_label);
+    let $blur = Q.create("input")
+        .prop("type", "range")
+        .prop("min", "0")
+        .prop("max", "4")
+        .prop("step", "1")
+        .addClass("slider");
+    $blur.value(this.blur);
+    $blur_label.append($blur);
+    $blur.on("input", e => {
+      this.blur = e.target.value;
+      this.paint(ctxt);
+    });
+
+    Q.create("br").appendTo($div);
+
+    let $thresh_label = Q.create("label").append("Threshold: ").prop("title", "Threshold for black");
+    $div.append($thresh_label);
+    let $thresh = Q.create("input")
+        .prop("type", "range")
+        .prop("min", "0")
+        .prop("max", "1000")
+        .prop("step", "1")
+        .addClass("slider");
+    $thresh.value(Math.floor(this.threshold * 1000));
+    $thresh_label.append($thresh);
+    $thresh.on("input", e => {
+      this.threshold = e.target.value / 1000;
+      this.paint(ctxt);
+    });
+
+    Q.create("br").appendTo($div);
+
+    let $accept = Q.create("input")
+        .prop("type", "button")
+        .prop("value", "Accept")
+        .prop("title", "Take selection to painting mode");
+    $accept.appendTo($div);
+    $accept.on("click", e => {
+      this.paint(ctxt, true);
+      let view = new KnotRasterView(this.width, this.height);
+      view.fromImage(ctxt.getImageData(0, 0, this.width, this.height));
+      undo_stack.push(view);
+    });
+
+    return $div;
+  },
+
+  paint: function (ctxt, onlyCropped=false) {
+    ctxt.save();
+    if (onlyCropped) {
+      ctxt.fillStyle = "#fff";
+    } else {
+      ctxt.fillStyle = "#ddd";
+    }
+    ctxt.fillRect(0, 0, this.width, this.height);
+
+    let rx = this.sx*this.scale+this.x,
+        ry = this.sy*this.scale+this.y,
+        rwidth = this.swidth*this.scale,
+        rheight = this.sheight*this.scale;
+
+    if (!onlyCropped) {
+      ctxt.globalAlpha = 0.3;
+      ctxt.drawImage(this.img,
+                     0, 0, this.img.width, this.img.height,
+                     this.x, this.y, this.scale*this.img.width, this.scale*this.img.height);
+
+      ctxt.globalAlpha = 1.0;
+      ctxt.fillStyle = "#fff";
+      ctxt.fillRect(rx, ry, rwidth, rheight);
+    }
+
+    let tmp_ctxt = this.tmp_ctxt;
+    tmp_ctxt.fillStyle = "#fff";
+    tmp_ctxt.fillRect(0, 0, rwidth + 1, rheight + 1);
+
+    tmp_ctxt.drawImage(this.img,
+                       this.sx, this.sy, this.swidth, this.sheight,
+                       0, 0, rwidth, rheight);
+
+    let imgdata = tmp_ctxt.getImageData(0, 0, Math.max(1, Math.floor(rwidth)), Math.max(1, Math.floor(rheight)));
+    let data = imgdata.data;
+
+    // make grayscale (put everything into channel 1)
+    let do_invert = this.invert;
+    for (let i = 0; i < data.length; i += 4) {
+      let c = (data[i] + data[i+1] + data[i+2])/3;
+      if (do_invert) {
+        c = 255 - c;
+      }
+      data[i] = c;
+    }
+
+    // blur this.blur times
+    let width = imgdata.width;
+    let height = imgdata.height;
+    let buf = new Uint8Array(width*height);
+    for (let time = 0; time < this.blur; time++) {
+      // approximate 3x3 Gaussian blur into buf
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let sum = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            let y2 = clamp(y + dy, 0, height-1);
+            for (let dx = -1; dx <= 1; dx++) {
+              let x2 = clamp(x + dx, 0, width-1);
+              let i = Math.abs(dx) + Math.abs(dy);
+              let k = 1;
+              if (i === 0) {
+                k = 4;
+              } else if (i === 1) {
+                k = 2;
+              }
+              sum += data[4*(width*y2 + x2)] * k;
+            }
+          }
+          buf[width*y+x] = sum / 16;
+        }
+      }
+      // copy buf to data
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          data[4*(width*y + x)] = buf[width*y+x];
+        }
+      }
+    }
+
+    // threshold
+    for (let i = 0; i < data.length; i += 4) {
+      let c = data[i];
+      c = (c/255 <= this.threshold) ? 0 : 255;
+      data[i] = data[i+1] = data[i+2] = c;
+      data[i+3] = 255;
+    }
+
+    ctxt.putImageData(imgdata, rx, ry);
+
+    ctxt.restore();
+  }
+});
+
 function KnotRasterView(width, height) {
   assert(width > 0);
   assert(height > 0);
@@ -1506,6 +1826,28 @@ KnotRasterView.def_methods({
         }
       }, true);
     }
+
+    $div.append(Q.create("br"));
+
+    let $load_image_label = Q.create("label").append("Load image: ").appendTo($div);
+    let $load_image = Q.create("input")
+        .prop("type", "file")
+        .prop("title", "Load an image from a file");
+    $load_image_label.append($load_image);
+    $load_image.on("input", e => {
+      let file = e.target.files[0];
+      if (file) {
+        let reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = () => {
+          let img = document.createElement("img");
+          img.onload = () => {
+            undo_stack.push(new KnotImageImport(WIDTH, HEIGHT, img));
+          };
+          img.src = reader.result;
+        };
+      }
+    });
 
     Q.create("hr").appendTo($div);
 
@@ -2848,6 +3190,11 @@ KnotDiagramGraph.def_methods({
 
 function kauffman_bracket(pd) {
   /* Computes the Kauffman bracket from the given pd. */
+
+  if (pd.length === 0) {
+    return null;
+  }
+
   let frontier = [];
   let bracket = TL.unit;
   while (pd.length > 0) {
@@ -2907,6 +3254,9 @@ function jones_poly(diagram) {
   /* Computes the Jones polynomial from a KnotDiagramGraph. Returns a polynomial in T=t^2. */
   assert(diagram instanceof KnotDiagramGraph);
   let kb = kauffman_bracket(diagram.get_pd());
+  if (kb === null) {
+    return null;
+  }
   let wr = diagram.writhe();
   let normalized_kb = kb.simple_mul(Math.pow(-1, wr), -3*wr);
   // The following polynomial is in T=t^2.
@@ -3242,15 +3592,17 @@ KnotDiagramView.def_methods({
                         .addClass("code-data")
                         .append("PD[" + this.diagram.get_pd(true).join(", ") + "]")));
 
+    let kb = kauffman_bracket(this.diagram.get_pd());
     $div.append(Q.create("p")
                 .append("Kauffman bracket:")
                 .append(Q.create("div")
-                        .append(kauffman_bracket(this.diagram.get_pd()).toPolyString("A"))));
+                        .append(kb ? kb.toPolyString("A") : "n/a")));
 
+    let jones = jones_poly(this.diagram);
     $div.append(Q.create("p")
                 .append("Jones polynomial:")
                 .append(Q.create("div")
-                        .append(jones_poly(this.diagram).toPolyString("t", 2))));
+                        .append(jones ? jones.toPolyString("t", 2) : "n/a")));
 
     let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
     $alex_mod.append(Q.create("br"));
@@ -3430,7 +3782,7 @@ Q(function () {
     undo_stack.get().paint(ctxt);
 
     let $tools = Q("#tools").empty();
-    $tools.append(undo_stack.get().toolbox(undo_stack));
+    $tools.append(undo_stack.get().toolbox(undo_stack, ctxt));
   });
 
   undo_stack.push(new KnotRasterView(WIDTH, HEIGHT));
@@ -3461,4 +3813,66 @@ Q(function () {
   canvas.on("contextmenu", function (e) {
     e.preventDefault();
   });
+
+  function process_img_upload() {
+    let img = this;
+    console.log([img.width, img.height]);
+    undo_stack.push(new KnotImageImport(WIDTH, HEIGHT, img));
+  }
+
+  function show_drop_area(shown) {
+    Q("#drop-area").css("display", shown ? "block" : "none");
+  }
+
+  let drag_enter_counter = 0;
+  document.addEventListener("dragenter", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    drag_enter_counter++;
+    show_drop_area(drag_enter_counter > 0);
+  }, true);
+  document.addEventListener("dragleave", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    drag_enter_counter--;
+    show_drop_area(drag_enter_counter > 0);
+  }, true);
+  document.addEventListener("dragover", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    show_drop_area(true);
+  }, true);
+  document.addEventListener("drop", e => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("drop");
+    drag_enter_counter = 0;
+    show_drop_area(false);
+
+    let uri = e.dataTransfer.getData('text/uri-list');
+    if (uri) {
+      let uris = uri.split("\n");
+      for (let i = 0; i < uris.length; i++) {
+        if (uris[i][0] !== "#") {
+          let img = document.createElement("img");
+          img.onload = process_img_upload;
+          img.src = uris[i];
+          return;
+        }
+      }
+    }
+
+    let files = e.dataTransfer.files;
+    if (files.length > 0) {
+      let file = files[0];
+      let reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        let img = document.createElement("img");
+        img.onload = process_img_upload;
+        img.src = reader.result;
+      };
+      return;
+    }
+  }, true);
 });

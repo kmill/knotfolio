@@ -94,6 +94,10 @@ body {
     color: #770000;
 }
 
+#tools-td .slider {
+    width: 200px;
+}
+
 #editor {
     
 }
@@ -125,4 +129,25 @@ textarea.code-data {
     font-size: 10px;
     font-family: monospace;
     width: 95%;
+}
+
+#drop-area {
+    position: fixed;
+    top: 0; right: 0; bottom: 0; left: 0;
+    z-index: 1;
+    background: white;
+    display:none;
+    pointer-events: none;
+}
+
+.drop-border {
+    border: 4px dashed #aaa;
+    border-radius: 10px;
+    padding: 2em;
+    font-size: 20pt;
+    position: absolute;
+    top: 1em; right: 1em; bottom: 1em; left: 1em;
+    font-family: system-ui, sans-serif;
+    font-weight: bold;
+    color: #777;
 }
