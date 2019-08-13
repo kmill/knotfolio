@@ -9,7 +9,7 @@ const MIN_LINE_LENGTH = 2;
 const MAX_PPREV_DIST = 2*PAINT_RADIUS+1 + 2*PAINT_GAP;
 const SPUR_LENGTH = 5; // the maximum-length spurs that will be auto-deleted in clean-up
 const ERROR_RADIUS = 6.5; // the radius of the red "error circles"
-const MAX_GAP_LENGTH = 50; // for under-crossings and gaps in lines
+const MAX_GAP_LENGTH = 70; // for under-crossings and gaps in lines
 
 const CROSSING_CHANGE_RADIUS = 10;
 const DIAGRAM_LINE_WIDTH = 3;
@@ -1829,10 +1829,11 @@ KnotRasterView.def_methods({
 
     $div.append(Q.create("br"));
 
-    let $load_image_label = Q.create("label").append("Load image: ").appendTo($div);
+    let $load_image_label = Q.create("label")
+        .prop("title", "Load an image from a file (can also drag and drop from the filesystem)")
+        .append("Load image: ").appendTo($div);
     let $load_image = Q.create("input")
-        .prop("type", "file")
-        .prop("title", "Load an image from a file");
+        .prop("type", "file");
     $load_image_label.append($load_image);
     $load_image.on("input", e => {
       let file = e.target.files[0];
@@ -3251,9 +3252,34 @@ function kauffman_bracket(pd) {
 }
 
 function jones_poly(diagram) {
-  /* Computes the Jones polynomial from a KnotDiagramGraph. Returns a polynomial in T=t^2. */
+}
+
+let invariant_caches = new WeakMap;
+
+let invariant_handlers = {};
+
+function get_invariant(diagram, name) {
   assert(diagram instanceof KnotDiagramGraph);
-  let kb = kauffman_bracket(diagram.get_pd());
+  let cache = invariant_caches.get(diagram);
+  if (cache && cache[name]) {
+    return cache[name];
+  }
+  let result = invariant_handlers[name](diagram);
+  cache = invariant_caches.get(diagram);
+  if (!cache) {
+    cache = {};
+    invariant_caches.set(diagram, cache);
+  }
+  cache[name] = result;
+  return result;
+}
+
+invariant_handlers.kauffman_bracket = function (diagram) {
+  return kauffman_bracket(diagram.get_pd());
+};
+invariant_handlers.jones_poly = function (diagram) {
+  /* Computes the Jones polynomial from a KnotDiagramGraph. Returns a polynomial in T=t^2. */
+  let kb = get_invariant(diagram, 'kauffman_bracket');
   if (kb === null) {
     return null;
   }
@@ -3269,7 +3295,14 @@ function jones_poly(diagram) {
     jp.push(new LTerm(term[0], new_exp));
   }
   return jp;
-}
+};
+invariant_handlers.wirtinger_presentation = function (diagram) {
+  return wirtinger_presentation(diagram.get_pd(true));
+};
+invariant_handlers.alexander_module = function (diagram) {
+  let wp = get_invariant(diagram, 'wirtinger_presentation');
+  return alexander_module(wp);
+};
 
 function KnotDiagramView(width, height, diagram) {
   assert(width > 0);
@@ -3592,24 +3625,59 @@ KnotDiagramView.def_methods({
                         .addClass("code-data")
                         .append("PD[" + this.diagram.get_pd(true).join(", ") + "]")));
 
-    let kb = kauffman_bracket(this.diagram.get_pd());
+    let kb = get_invariant(this.diagram, 'kauffman_bracket');
     $div.append(Q.create("p")
                 .append("Kauffman bracket:")
                 .append(Q.create("div")
                         .append(kb ? kb.toPolyString("A") : "n/a")));
 
-    let jones = jones_poly(this.diagram);
+    let jones = get_invariant(this.diagram, 'jones_poly');
     $div.append(Q.create("p")
                 .append("Jones polynomial:")
                 .append(Q.create("div")
                         .append(jones ? jones.toPolyString("t", 2) : "n/a")));
 
+    if (0) {
+      let wp = get_invariant(this.diagram, 'wirtinger_presentation');
+      let gens = Q.create("div").append("Generators: ");
+      wp.gens.forEach((g, i) => {
+        if (i > 0) {
+          gens.append(", ");
+        }
+        gens.append(showGen(g));
+      });
+      let rels = Q.create("div").append("Relations: ");
+      wp.rels.forEach((rel, i) => {
+        if (i > 0) {
+          rels.append(", ");
+        }
+        rels.append(showRel(rel));
+      });
+      $div.append(Q.create("p")
+                  .append("Wirtinger presentation:")
+                  .append(gens)
+                  .append(rels));
+      function showGen(g) {
+        let s = Q.create("span").append(g[0]);
+        s.append(Q.create("sub").append(g.slice(1)));
+        return s;
+      }
+      function showRel(rel) {
+        let s = Q.create("span");
+        for (let i = 0; i < rel.length; i += 2) {
+          s.append(showGen(rel[i]));
+          if (rel[i+1] !== 1) {
+            s.append(Q.create("sup").append(''+rel[i+1]));
+          }
+        }
+        return s;
+      }
+    }
+
     let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
     $alex_mod.append(Q.create("br"));
     {
-      let wp = wirtinger_presentation(this.diagram.get_pd(true));
-      console.log("Wirtinger: " + toString(wp.rels));
-      let matrix = alexander_module(wp);
+      let matrix = get_invariant(this.diagram, 'alexander_module');
       window.matrix = matrix;
       let $table = Q.create("table").addClass("alexander-matrix");
       matrix.forEach(row => {
@@ -3855,6 +3923,7 @@ Q(function () {
       for (let i = 0; i < uris.length; i++) {
         if (uris[i][0] !== "#") {
           let img = document.createElement("img");
+          img.crossOrigin = "Anonymous"; // just in case the site allows it (CORS prevents most things)
           img.onload = process_img_upload;
           img.src = uris[i];
           return;
