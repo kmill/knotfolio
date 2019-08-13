@@ -113,11 +113,11 @@ canvas {
     text-align: center;
 }
 
-#diag-info table.alexander-matrix {
+#tools table.alexander-matrix {
     border: 1px solid #ccc;
 }
 
-#diag-info table.alexander-matrix td {
+#tools table.alexander-matrix td {
     padding: 2px 3px;
     text-align: center;
     background: #bbb;

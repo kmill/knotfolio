@@ -3682,6 +3682,16 @@ KnotDiagramView.def_methods({
                 .append(Q.create("div")
                         .append(kb ? kb.toPolyString("A") : "n/a")));
 
+    $div.append(Q.create("h2").append("Identification"));
+    let names = identify_link(this.diagram);
+    if (names.length === 0) {
+      $div.append(Q.create("p").append("Unknown link"));
+    } else {
+      $div.append(Q.create("p").append("Candidates: " + names.join(", ")));
+    }
+
+    $div.append(Q.create("h2").append("Invariants"));
+
     let jones = get_invariant(this.diagram, 'jones_poly');
     $div.append(Q.create("p")
                 .append("Jones polynomial:")
@@ -3725,7 +3735,20 @@ KnotDiagramView.def_methods({
       }
     }
 
-    let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
+    let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($div);
+    for (let n = 0; ; n++) {
+      let poly = get_invariant(this.diagram, "alexander_poly", n);
+      if (n >= 1 && poly.equal(Laurent.unit)) {
+        break;
+      }
+      $alex_polys.append(Q.create("br"));
+      $alex_polys.append("\u0394");
+      $alex_polys.append(Q.create("sup").append(''+n));
+      $alex_polys.append("(t) = " + poly.toPolyString("t"));
+    }
+
+
+    let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($div);
     $alex_mod.append(Q.create("br"));
     {
       let matrix = get_invariant(this.diagram, 'alexander_module');
@@ -3740,25 +3763,6 @@ KnotDiagramView.def_methods({
       });
       $alex_mod.append($table);
       $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
-
-      for (let n = 0; ; n++) {
-        let poly = get_invariant(this.diagram, "alexander_poly", n);
-        if (n >= 1 && poly.equal(Laurent.unit)) {
-          break;
-        }
-        $alex_mod.append(Q.create("br"));
-        $alex_mod.append("\u0394");
-        $alex_mod.append(Q.create("sup").append(''+n));
-        $alex_mod.append("(t) = " + poly.toPolyString("t"));
-      }
-    }
-
-    $div.append(Q.create("h2").append("Identification"));
-    let names = identify_link(this.diagram);
-    if (names.length === 0) {
-      $div.append(Q.create("p").append("Unknown link"));
-    } else {
-      $div.append(Q.create("p").append("Candidates: " + names.join(", ")));
     }
     
     return $div;
