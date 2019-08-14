@@ -27,6 +27,21 @@ def normalize_alex(p):
     else:
         return [0] + cs
 
+def poly_reverse(poly):
+    minexp = poly[0]
+    maxexp = len(poly) - 2 + minexp
+    return [-maxexp] + list(reversed(poly[1:]))
+
+def is_amphicheiral(symmetry_type):
+    symmetry_type = symmetry_type.strip()
+    if symmetry_type in ("", "fully amphicheiral", "negative amphicheiral", "positive amphicheiral"):
+        return True
+    elif symmetry_type in ("reversible", "chiral"):
+        return False
+    else:
+        print(symmetry_type)
+        raise Exception(symmetry_type)
+
 print("Processing knotinfo")
 with xlrd.open_workbook("knotinfo_data_complete.xls") as book:
     sheet = book.sheet_by_index(0)
@@ -53,6 +68,13 @@ with xlrd.open_workbook("knotinfo_data_complete.xls") as book:
         entry['bridge_number'] = int(get('bridge_index').value)
 
         data.append(entry)
+
+        if not is_amphicheiral(get('symmetry_type').value):
+            entry = entry.copy()
+            entry['name'] = 'm' + entry['name']
+            entry['signature'] = -entry['signature']
+            entry['jones'] = poly_reverse(entry['jones'])
+            data.append(entry)
 
 print("Processing linkinfo")
 with open("linkinfo_mv_alexander.json") as fin:
