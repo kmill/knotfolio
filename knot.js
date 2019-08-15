@@ -2673,11 +2673,15 @@ KnotRasterView.def_methods({
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             if (c === buf[(y+dy)*width + (x+dx)]) {
+              x = x + dx; y = y + dy;
+              while (c === buf[(y+dy)*width + (x+dx)]) {
+                buf[y*width + x] = 0;
+                x = x + dx; y = y + dy;
+              }
               let pt2 = verts.length;
-              verts.push(new Point(x+dx, y+dy));
+              verts.push(new Point(x, y));
               edges.push([pt1, pt2, c, true]);
               pt1 = pt2;
-              x = x + dx; y = y + dy;
               continue next_point;
             }
           }
@@ -2968,18 +2972,24 @@ KnotDiagramGraph.def_methods({
     /* Deletes the entire component containing the given dart. Assumes
        the diagram is oriented.*/
     let edge_ids = this.dart_circuit(dart_id).map(dart => Math.abs(dart) - 1);
-    // remove edges and vertices from the graph by setting them to null; will compact later
+    // remove edges and vertices from the graph by setting them to null, then compact
     edge_ids.forEach(eid => {
       let edge = this.edges[eid];
       this.adj[edge[0]] = this.adj[edge[0]].filter(d => d !== eid+1 && d != -eid-1);
       this.adj[edge[1]] = this.adj[edge[1]].filter(d => d !== eid+1 && d != -eid-1);
       this.edges[eid] = null;
     });
+    this.compact();
+  },
+  compact: function () {
+    /* The edge and vertex lists are allowed to have nulls.  Deletes
+       any degree-0 vertices, and renumbers everything so there are no
+       nulls. */
     let newverts = [];
     for (let i = 0; i < this.verts.length; i++) {
       if (this.adj[i].length === 0) {
         this.verts[i] = null;
-      } else {
+      } else if (this.verts[i] !== null) {
         let new_vid = newverts.length;
         newverts.push(this.verts[i]);
         this.verts[i] = new_vid; // store forwarding pointer
