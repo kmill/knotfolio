@@ -1344,7 +1344,6 @@ function KnotImageImport(width, height, img) {
   this.tmp_canvas.height = this.height;
   this.tmp_ctxt = this.tmp_canvas.getContext("2d");
 
-  console.log(this.scale);
   this.mode_name = "Image importing";
 }
 KnotImageImport.tool_state = {
@@ -2902,8 +2901,8 @@ KnotDiagramGraph.def_methods({
         d = this.through_dart(d);
       } while (d !== dart);
     });
-    console.log("seen darts " + seen_darts.size);
-    console.log("edges " + this.edges.length);
+    //console.log("seen darts " + seen_darts.size);
+    //console.log("edges " + this.edges.length);
   },
   reverse_orientation: function (dart_id) {
     /* Reverses the orientation of the entire component given by
@@ -3224,18 +3223,14 @@ function kauffman_bracket(pd) {
     pd.splice(best_eid, 1);
     let tl = null;
     if (entity.length === 2) {
-      console.log("!");
       tl = new TL(new TLTerm(Laurent.unit, [new TLPath(entity[0], entity[1])]));
     } else {
-      console.log("!! " + entity);
       tl = new TL(new TLTerm(Laurent.t, [new TLPath(entity[0], entity[1]),
                                          new TLPath(entity[2], entity[3])]),
                   new TLTerm(Laurent.tinv, [new TLPath(entity[0], entity[3]),
                                             new TLPath(entity[1], entity[2])]));
     }
-    console.log(entity.toString() + " => " + tl.toString());
     bracket = bracket.mul(tl);
-    console.log("bracket: " + bracket.toString());
 
     // update frontier
     entity.forEach(i => {
@@ -3945,7 +3940,6 @@ Q(function () {
 
   function process_img_upload() {
     let img = this;
-    console.log([img.width, img.height]);
     undo_stack.push(new KnotImageImport(WIDTH, HEIGHT, img));
   }
 
@@ -3974,7 +3968,6 @@ Q(function () {
   document.addEventListener("drop", e => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("drop");
     drag_enter_counter = 0;
     show_drop_area(false);
 
@@ -4005,4 +3998,21 @@ Q(function () {
       return;
     }
   }, true);
+
+  document.addEventListener('paste', e => {
+    let items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        let file = items[i].getAsFile();
+        let reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onloadend = () => {
+          let img = document.createElement("img");
+          img.onload = process_img_upload;
+          img.src = reader.result;
+        };
+        return;
+      }
+    }
+  }, false);
 });
