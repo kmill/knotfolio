@@ -2930,6 +2930,40 @@ KnotDiagramGraph.def_methods({
       adj[idx] = dart;
     });
   },
+  make_alternating: function () {
+    /* Changes crossings to make this into an alternating
+       diagram. Assumes the diagram is oriented.  Leaves an
+       already-alternating diagram alone. */
+    let seen_edges = [];
+    let to_see = [];
+    let visit_edges = () => {
+      while (to_see.length) {
+        let eid = to_see.pop();
+        if (!seen_edges[eid]) {
+          let sign = null;
+          this.dart_circuit(eid + 1).forEach(dart => {
+            seen_edges[Math.abs(dart) - 1] = true;
+            let vid = this.dart_start(dart);
+            let this_sign = this.adj[vid].indexOf(dart) % 2 === 0;
+            if (this.adj[vid].length === 4) {
+              this.adj[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
+              if (sign === this_sign) {
+                this.adj[vid].push(this.adj[vid].shift());
+                this_sign = !this_sign;
+              }
+              sign = this_sign;
+            }
+          });
+        }
+      }
+    };
+    for (let i = 0; i < this.edges.length; i++) {
+      if (!seen_edges[i]) {
+        to_see.push(i);
+        visit_edges();
+      }
+    }
+  },
   delete_component: function (dart_id) {
     /* Deletes the entire component containing the given dart. Assumes
        the diagram is oriented.*/
@@ -3582,7 +3616,17 @@ KnotDiagramView.def_methods({
       view.diagram.adj = view.diagram.adj.map(a => a.map(d => -d));
       undo_stack.push(view);
     });
-    
+
+    let $alternating = Q.create("input")
+        .prop("type", "button")
+        .value("Make alternating")
+        .prop("title", "Change types of crossings to make an alternating diagram")
+        .appendTo($div);
+    $alternating.on("click", e => {
+      let view = this.copy();
+      view.diagram.make_alternating();
+      undo_stack.push(view);
+    });
 
     $div.append(Q.create("br"));
 
