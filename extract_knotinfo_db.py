@@ -42,6 +42,11 @@ def is_amphicheiral(symmetry_type):
         print(symmetry_type)
         raise Exception(symmetry_type)
 
+def cut_katlas(url):
+    if not url.startswith("http://katlas.math.toronto.edu/wiki/"):
+        raise Exception(url)
+    return url[len("http://katlas.math.toronto.edu/wiki/"):]
+
 print("Processing knotinfo")
 with xlrd.open_workbook("knotinfo_data_complete.xls") as book:
     sheet = book.sheet_by_index(0)
@@ -55,6 +60,9 @@ with xlrd.open_workbook("knotinfo_data_complete.xls") as book:
         
         entry={}
         entry['name'] = get('name').value
+        if get('knot_atlas_anon').value:
+            entry['katlas'] = cut_katlas(get('knot_atlas_anon').value)
+
         if get('pd_notation').value == "":
             entry['pd'] = [[1,1]]
         else:
@@ -93,6 +101,10 @@ with xlrd.open_workbook("linkinfo_data_complete.xlsx") as book:
         entry['name'] = get('name').value
         if not entry['name']:
             break
+
+        if get('knot_atlas_anon').value:
+            entry['katlas'] = cut_katlas(get('knot_atlas_anon').value)
+
         entry['pd'] = json.loads(get('pd_notation_vector').value.replace("{","[").replace("}","]"))
         entry['crossing_number'] = int(get('crossing_number').value)
         entry['signature'] = int(get('signature').value)

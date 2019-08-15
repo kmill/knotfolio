@@ -3385,7 +3385,16 @@ function identify_link(diagram) {
     return true;
   });
 
-  let names = options.map(o => o.name);
+  let names = options.map(o => {
+    let name = o.name;
+    if (o.katlas) {
+      name = Q.create("a")
+        .prop("href", "http://katlas.math.toronto.edu/wiki/" + o.katlas)
+        .prop("target", "_blank")
+        .append(name);
+    }
+    return name;
+  });
   return names;
 }
 
@@ -3731,7 +3740,13 @@ KnotDiagramView.def_methods({
     if (names.length === 0) {
       $div.append(Q.create("p").append("Unknown link"));
     } else {
-      $div.append(Q.create("p").append("Candidates: " + names.join(", ")));
+      let cands = Q.create("p").append("Candidates: ").appendTo($div);
+      names.forEach((c, i) => {
+        if (i > 0) {
+          cands.append(", ");
+        }
+        cands.append(c);
+      });
     }
 
     $div.append(Q.create("h2").append("Invariants"));
