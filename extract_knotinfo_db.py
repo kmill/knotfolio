@@ -69,12 +69,12 @@ with xlrd.open_workbook("knotinfo_data_complete.xls") as book:
 
         data.append(entry)
 
-        if not is_amphicheiral(get('symmetry_type').value):
-            entry = entry.copy()
-            entry['name'] = 'm' + entry['name']
-            entry['signature'] = -entry['signature']
-            entry['jones'] = poly_reverse(entry['jones'])
-            data.append(entry)
+#        if not is_amphicheiral(get('symmetry_type').value):
+#            entry = entry.copy()
+#            entry['name'] = 'm' + entry['name']
+#            entry['signature'] = -entry['signature']
+#            entry['jones'] = poly_reverse(entry['jones'])
+#            data.append(entry)
 
 print("Processing linkinfo")
 with open("linkinfo_mv_alexander.json") as fin:

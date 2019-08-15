@@ -3325,7 +3325,8 @@ function identify_link(diagram) {
   let max_crossing = diagram.crossing_number();
   let alex_poly = get_invariant(diagram, 'alexander_poly').coeffs();
   let jones_poly = get_invariant(diagram, 'jones_poly');
-  let jones_coeffs = jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [];
+  let jones_coeffs = jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [0];
+  let jones_coeffs_rev = [-jones_coeffs.length + 2 - jones_coeffs[0]].concat(jones_coeffs.slice(1).reverse());
 
   let options = knotinfo_data.filter(o => {
     if (o.crossing_number > max_crossing) {
@@ -3339,7 +3340,7 @@ function identify_link(diagram) {
         return false;
       }
     }
-    if (!equal(jones_coeffs, o.jones)) {
+    if (!equal(jones_coeffs, o.jones) && !equal(jones_coeffs_rev, o.jones)) {
       return false;
     }
     return true;
