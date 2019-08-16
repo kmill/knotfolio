@@ -11,6 +11,8 @@ const SPUR_LENGTH = 5; // the maximum-length spurs that will be auto-deleted in 
 const ERROR_RADIUS = 6.5; // the radius of the red "error circles"
 const MAX_GAP_LENGTH = 70; // for under-crossings and gaps in lines
 
+const CROSSING_GAP = 8;
+
 const CROSSING_CHANGE_RADIUS = 10;
 const DIAGRAM_LINE_WIDTH = 3;
 
@@ -235,8 +237,11 @@ class Point {
   }
 }
 Point.def_methods({
+  copy: function () {
+    return new Point(this.x, this.y);
+  },
   toString: function () {
-    return "Point(" + this.x + ", " + this.y + ")";
+    return "new Point(" + this.x + ", " + this.y + ")";
   }
 });
 Point.equal = function (p1, p2) {
@@ -257,6 +262,15 @@ Point.dist = function (p1, p2) {
   var dx = p1.x - p2.x,
       dy = p1.y - p2.y;
   return Math.sqrt(dx*dx + dy*dy);
+};
+Point.norm_diff = function (p1, p2) {
+  /* Gives p1 - p2, normalized.  Returns a point even though it should return a vector. */
+  assert(p1 instanceof Point);
+  assert(p2 instanceof Point);
+  let dx = p1.x - p2.x,
+      dy = p1.y - p2.y;
+  let norm = Math.sqrt(dx*dx + dy*dy);
+  return new Point(dx/norm, dy/norm);
 };
 
 function calculate_angle(p0, p1, p2) {
@@ -2629,10 +2643,10 @@ KnotRasterView.def_methods({
 
     function do_error_stuff() {
       console.log("error");
-      matches.forEach(match => {
+/*      matches.forEach(match => {
         knot.draw_line(null, match[0], match[1], match[2], -1);
       });
-      errors.push("(All found matchings are drawn in on of the thinned version of the picture, to give some idea of what the program is seeing.  This can usually be edited and converted without undoing.)");
+      errors.push("(All found matchings are drawn in on of the thinned version of the picture, to give some idea of what the program is seeing.  This can usually be edited and converted without undoing.)");*/
       knot.the_error = errors;
       return knot;
     }
@@ -2852,18 +2866,18 @@ KnotRasterView.def_methods({
   }
 });
 
-function KnotDiagramGraph(verts, edges, adj) {
+function KnotDiagramGraph(verts, edges, adjs) {
   this.verts = verts; // [Point,...]
   this.edges = edges; // [[vtx, vtx, comp],...]
-  this.adj = adj; // [[dart...],...] where dart 0 and 2 are under, 1 and 3 are over
+  this.adjs = adjs; // [[dart...],...] where dart 0 and 2 are under, 1 and 3 are over
   // a dart is edgeid+1 or -edgeid-1 depending on which side the edge is
 }
 KnotDiagramGraph.def_methods({
   copy: function () {
     return new KnotDiagramGraph(
-      this.verts.slice(),
+      this.verts.map(pt => pt.copy()),
       this.edges.map(edge => edge.slice()),
-      this.adj.map(list => list.slice())
+      this.adjs.map(list => list.slice())
     );
   },
   ensure_orientation: function () {
@@ -2890,12 +2904,12 @@ KnotDiagramGraph.def_methods({
           curr_edge[1] = t_vert;
           // swap darts in adj
           let adj, idx;
-          adj = this.adj[curr_edge[0]];
+          adj = this.adjs[curr_edge[0]];
           idx = adj.indexOf(-d);
           assert(idx >= 0);
           adj[idx] = d;
           
-          adj = this.adj[curr_edge[1]];
+          adj = this.adjs[curr_edge[1]];
           idx = adj.indexOf(d);
           assert(idx >= 0);
           adj[idx] = -d;
@@ -2923,12 +2937,12 @@ KnotDiagramGraph.def_methods({
 
       // swap darts in adj
       let adj, idx;
-      adj = this.adj[edge[1]];
+      adj = this.adjs[edge[1]];
       idx = adj.indexOf(dart);
       assert(idx >= 0);
       adj[idx] = -dart;
 
-      adj = this.adj[edge[0]];
+      adj = this.adjs[edge[0]];
       idx = adj.indexOf(-dart);
       assert(idx >= 0);
       adj[idx] = dart;
@@ -2948,11 +2962,11 @@ KnotDiagramGraph.def_methods({
           this.dart_circuit(eid + 1).forEach(dart => {
             seen_edges[Math.abs(dart) - 1] = true;
             let vid = this.dart_start(dart);
-            let this_sign = this.adj[vid].indexOf(dart) % 2 === 0;
-            if (this.adj[vid].length === 4) {
-              this.adj[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
+            let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
+            if (this.adjs[vid].length === 4) {
+              this.adjs[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
               if (sign === this_sign) {
-                this.adj[vid].push(this.adj[vid].shift());
+                this.adjs[vid].push(this.adjs[vid].shift());
                 this_sign = !this_sign;
               }
               sign = this_sign;
@@ -2975,8 +2989,8 @@ KnotDiagramGraph.def_methods({
     // remove edges and vertices from the graph by setting them to null, then compact
     edge_ids.forEach(eid => {
       let edge = this.edges[eid];
-      this.adj[edge[0]] = this.adj[edge[0]].filter(d => d !== eid+1 && d != -eid-1);
-      this.adj[edge[1]] = this.adj[edge[1]].filter(d => d !== eid+1 && d != -eid-1);
+      this.adjs[edge[0]] = this.adjs[edge[0]].filter(d => d !== eid+1 && d != -eid-1);
+      this.adjs[edge[1]] = this.adjs[edge[1]].filter(d => d !== eid+1 && d != -eid-1);
       this.edges[eid] = null;
     });
     this.compact();
@@ -2987,7 +3001,7 @@ KnotDiagramGraph.def_methods({
        nulls. */
     let newverts = [];
     for (let i = 0; i < this.verts.length; i++) {
-      if (this.adj[i].length === 0) {
+      if (this.adjs[i] && this.adjs[i].length === 0) {
         this.verts[i] = null;
       } else if (this.verts[i] !== null) {
         let new_vid = newverts.length;
@@ -3004,9 +3018,9 @@ KnotDiagramGraph.def_methods({
         newedges.push([this.verts[edge[0]], this.verts[edge[1]], edge[2]]);
       }
     }
-    let newadj = [];
+    let newadjs = [];
     for (let i = 0; i < this.verts.length; i++) {
-      let adj = this.adj[i];
+      let adj = this.adjs[i];
       if (this.verts[i] !== null) {
         let adj2 = [];
         adj.forEach(dart => {
@@ -3015,13 +3029,259 @@ KnotDiagramGraph.def_methods({
             adj2.push(Math.sign(dart) * (fwd + 1));
           }
         });
-        newadj.push(adj2);
+        newadjs.push(adj2);
       }
     }
     this.verts = newverts;
     this.edges = newedges;
-    this.adj = newadj;
+    this.adjs = newadjs;
   },
+  smooth: function (times = 10) {
+    const MAX_LENGTH = 4;
+    const MIN_CROSSING_DIST = 50;
+    console.log(this.edges.length);
+
+    for (let time = 0; time < times; time++) {
+
+      // Subdivide long edges
+      for (let i = 0; i < this.edges.length; i++) {
+        let edge = this.edges[i];
+        if (edge === null) {
+          continue;
+        }
+        let dist = Point.dist(this.verts[edge[0]], this.verts[edge[1]]);
+        if (dist > MAX_LENGTH) {
+          this.subdivide_edge(i);
+          i--; // try subdividing same edge again
+        }
+      }
+
+      let closest_closest = Infinity;
+
+      // nudge each vertex in a good direction.
+      for (let i = 0; i < this.verts.length; i++) {
+        let pt = this.verts[i];
+        if (pt === null) {
+          continue;
+        }
+
+        let closest_dist = Infinity; // distance to closest other edges
+        let closest_vtx = null;
+        let closest_vtx_dist = Infinity;
+        for (let j = 0; j < this.edges.length; j++) {
+          let edge = this.edges[j];
+          if (edge[0] === i || edge[1] === i) {
+            continue;
+          }
+          let dist = segment_distance(this.verts[edge[0]], this.verts[edge[1]], pt);
+          closest_dist = Math.min(closest_dist, dist);
+
+          for (let k = 0; k < 2; k++) {
+            let dist = Point.dist(this.verts[edge[k]], pt);
+            if (dist < closest_vtx_dist) {
+              closest_vtx_dist = dist;
+              closest_vtx = this.verts[edge[k]];
+            }
+          }
+        }
+        closest_closest = Math.min(closest_closest, closest_dist);
+
+        let closest_crossing = null;
+        let closest_crossing_dist = Infinity;
+        for (let j = 0; j < this.verts.length; j++) {
+          if (i !== j && this.adjs[j].length === 4) {
+            let dist = Point.dist(pt, this.verts[j]);
+            if (dist < closest_crossing_dist) {
+              closest_crossing_dist = dist;
+              closest_crossing = this.verts[j];
+            }
+          }
+        }
+
+        let avg_dx = 0;
+        let avg_dy = 0;
+
+        let adj = this.adjs[i];
+
+        function dihedral(pt_0, pt_1) {
+          let d0 = Point.norm_diff(pt_0, pt),
+              d1 = Point.norm_diff(pt_1, pt);
+          let dx = d0.x + d1.x,
+              dy = d0.y + d1.y;
+          let norm2 = dx*dx + dy*dy;
+          if (norm2 > 0) {
+            let norm = Math.sqrt(norm2);
+            dx /= norm;
+            dy /= norm;
+            // now (dx, dy) is unit dihedral vector
+
+            let dot0 = Math.abs(dx * d0.x + dy * d0.y),
+                dot1 = Math.abs(dx * d1.x + dy * d1.y);
+            let mindot = Math.min(dot0, dot1);
+            //          mindot = Math.min(1, mindot);
+
+            avg_dx += mindot * dx;
+            avg_dy += mindot * dy;
+          }
+        }
+
+        if (adj.length === 2) {
+          let pt_0 = this.verts[this.dart_end(adj[0])],
+              pt_1 = this.verts[this.dart_end(adj[1])];
+          dihedral(pt_0, pt_1);
+          dihedral(this.verts[this.dart_end(this.through_dart(adj[0]))],
+                   this.verts[this.dart_end(this.through_dart(adj[1]))]);
+
+          if (closest_vtx_dist < MIN_LINE_LENGTH) {
+            let d = Point.norm_diff(pt, closest_vtx);
+            avg_dx += d.x;
+            avg_dy += d.y;
+          }
+
+        } else if (adj.length === 4) {
+          let pt_0 = this.verts[this.dart_end(adj[0])],
+              pt_1 = this.verts[this.dart_end(adj[1])],
+              pt_2 = this.verts[this.dart_end(adj[2])],
+              pt_3 = this.verts[this.dart_end(adj[3])];
+          dihedral(pt_0, pt_2);
+          dihedral(pt_1, pt_3);
+
+          if (closest_crossing_dist < MIN_CROSSING_DIST) {
+            let d = Point.norm_diff(pt, closest_crossing);
+            avg_dx = d.x;
+            avg_dy = d.y;
+          }
+        }
+
+        assert(!isNaN(avg_dx));
+        assert(!isNaN(avg_dy));
+
+        let len = Math.sqrt(avg_dx * avg_dx + avg_dy * avg_dy);
+        if (len >= 1) {
+          avg_dx /= len;
+          avg_dy /= len;
+          len = 1;
+        }
+        assert(!isNaN(avg_dx));
+        assert(!isNaN(avg_dy));
+
+        if (len > closest_dist / 2) {
+          let c = closest_dist / (2 * len);
+          avg_dx *= c;
+          avg_dy *= c;
+        }
+        assert(Math.sqrt(avg_dx * avg_dx + avg_dy * avg_dy) <= closest_dist * 0.51);
+        assert(!isNaN(avg_dx));
+        assert(!isNaN(avg_dy));
+
+        pt.x += avg_dx;
+        pt.y += avg_dy;
+      }
+
+      console.log("closest_closest = " + closest_closest);
+
+      this.simplify_mesh();
+      this.compact();
+    }
+
+  },
+  subdivide_edge: function (i) {
+    /* Subdivides edge i into two equal parts.  Assumes the diagram is
+       oriented.  Adds new edge to the end of the edge list. */
+    let edge = this.edges[i];
+    assert(edge);
+    let v0 = edge[0],
+        v2 = edge[1];
+
+    let v1 = this.verts.length;
+    this.verts.push(point_along(this.verts[v0], this.verts[v2], 0.5));
+
+    edge[1] = v1;
+    let newedge = [v1, v2, edge[2]];
+    let j = this.edges.length;
+    this.edges.push(newedge);
+
+    var idx;
+    idx = this.adjs[v2].indexOf(-i - 1);
+    assert(idx >= 0);
+    this.adjs[v2][idx] = -j - 1;
+    this.adjs.push([-i-1, j+1]);
+  },
+  unsubdivide: function (vtx_i) {
+    /* Does not check if this operation will leave the diagram in a non-planar state. */
+    assert(this.adjs[vtx_i].length === 2);
+    let dart = Math.abs(this.adjs[vtx_i][0]);
+    if (this.dart_end(dart) !== vtx_i) {
+      dart = Math.abs(this.adjs[vtx_i][1]);
+    }
+    assert(this.dart_end(dart) === vtx_i);
+    let e0 = dart - 1,
+        e1 = this.through_dart(dart) - 1;
+    assert(e1 >= 0);
+    let edge0 = this.edges[e0],
+        edge1 = this.edges[e1];
+    let v2 = this.dart_end(this.through_dart(dart));
+
+    let idx2 = this.adjs[v2].indexOf(this.opp_dart(this.through_dart(dart)));
+    assert(idx2 >= 0);
+
+    edge0[1] = edge1[1];
+    this.adjs[v2][idx2] = this.opp_dart(dart);
+    this.verts[vtx_i] = null;
+    this.adjs[vtx_i] = null;
+    this.edges[e1] = null;
+  },
+  simplify_mesh: function () {
+    /* Simplifies the mesh, unsubdividing edges so long as it doesn't
+       move things more than 1 pixel. Need to run compact afterwards. */
+    let do_remove = true;
+    while (do_remove) {
+      do_remove = false;
+      next_vtx:
+      for (let i = 0; i < this.verts.length; i++) {
+        let pt = this.verts[i];
+        if (pt === null) {
+          continue next_vtx;
+        }
+        let adj = this.adjs[i];
+        if (adj.length === 2) {
+          // calculate length of altitude h of triangle given by vectors pt_0-pt and pt_1-pt.
+          let v0 = this.dart_end(adj[0]),
+              v1 = this.dart_end(adj[1]);
+          let pt_0 = this.verts[v0],
+              pt_1 = this.verts[v1];
+          let w0x = pt_0.x - pt.x,
+              w0y = pt_0.y - pt.y,
+              w1x = pt_1.x - pt.x,
+              w1y = pt_1.y - pt.y,
+              ux = pt_0.x - pt_1.x,
+              uy = pt_0.y - pt_1.y;
+          let cross = w0x*w1y - w1x*w0y;
+          let h = Math.abs(cross) / Math.sqrt(ux*ux + uy*uy);
+
+          if (h <= 0.2) {
+            // Will the unsubdivided version run through anything?
+            for (let j = 0; j < this.edges.length; j++) {
+              if (j !== Math.abs(adj[0]) - 1 && j !== Math.abs(adj[1]) - 1) {
+                let edge = this.edges[j];
+                if (edge === null) {
+                  continue;
+                }
+                if (segments_intersect(this.verts[edge[0]], this.verts[edge[1]],
+                                       pt_0, pt_1)) {
+                  continue next_vtx;
+                }
+              }
+            }
+            this.unsubdivide(i);
+            this.do_remove = true;
+          }
+        }
+      }
+    }
+
+  },
+
   dart_start: function (dart_id) {
     /* Takes a dart id and returns a vertex id. */
     return this.dart_edge(dart_id)[dart_id > 0 ? 0 : 1];
@@ -3038,13 +3298,13 @@ KnotDiagramGraph.def_methods({
   },
   dart_order: function (dart_id) {
     /* Takes a dart id and returns the number of incident darts at its vertex. */
-    let adj = this.adj[this.dart_start(dart_id)];
+    let adj = this.adjs[this.dart_start(dart_id)];
     return adj.length;
   },
   dart_is_over: function (dart_id) {
     /* Assuming the dart id is for a dart at a crossing, gives whether the dart is part of the over-strand. */
     assert(typeof dart_id === "number");
-    let adj = this.adj[this.dart_start(dart_id)];
+    let adj = this.adjs[this.dart_start(dart_id)];
     assert(adj.length === 4);
     let idx = adj.indexOf(dart_id);
     assert(idx >= 0);
@@ -3054,7 +3314,7 @@ KnotDiagramGraph.def_methods({
     /* Takes a dart id and returns the next dart in counter-clockwise
        order about its vertex. */
     assert(typeof dart_id === "number");
-    let adj = this.adj[this.dart_start(dart_id)];
+    let adj = this.adjs[this.dart_start(dart_id)];
     let idx = adj.indexOf(dart_id);
     assert(idx >= 0);
     return adj[(idx + 1) % adj.length];
@@ -3063,7 +3323,7 @@ KnotDiagramGraph.def_methods({
     /* Takes a dart id and returns the previous dart in counter-clockwise
        order about its vertex. */
     assert(typeof dart_id === "number");
-    let adj = this.adj[this.dart_start(dart_id)];
+    let adj = this.adjs[this.dart_start(dart_id)];
     let idx = adj.indexOf(dart_id);
     assert(idx >= 0);
     return adj[(idx + adj.length - 1) % adj.length];
@@ -3104,7 +3364,7 @@ KnotDiagramGraph.def_methods({
 
   crossing_number: function () {
     let num = 0;
-    this.adj.forEach(a => {
+    this.adjs.forEach(a => {
       if (a.length === 4) {
         num++;
       }
@@ -3115,7 +3375,7 @@ KnotDiagramGraph.def_methods({
   writhe: function () {
     /* Gives the total writhe of the diagram. */
     let wr = 0;
-    this.adj.forEach((a, vi) => {
+    this.adjs.forEach((a, vi) => {
       if (a.length === 4) {
         if (this.dart_oriented(a[1]) === this.dart_oriented(a[2])) {
           wr += 1;
@@ -3144,7 +3404,7 @@ KnotDiagramGraph.def_methods({
       let m2 = matrix.get(c2);
       m2.set(c1, (m2.get(c1)||0) + delta);
     }
-    this.adj.forEach((a, vi) => {
+    this.adjs.forEach((a, vi) => {
       if (a.length === 4) {
         // recall: a[0] is dart for undercrossing
         //  a[2] \ / a[1]
@@ -3217,7 +3477,7 @@ KnotDiagramGraph.def_methods({
         }
       }
     }
-    this.adj.forEach(adj => {
+    this.adjs.forEach(adj => {
       if (adj.length === 4) {
         if (!this.dart_oriented(adj[1])) {
           adj = adj.slice(2).concat(adj.slice(0, 2));
@@ -3406,6 +3666,9 @@ function KnotDiagramView(width, height, diagram) {
   this.height = height;
   this.diagram = diagram;
 
+  this.c = new Point(0, 0);
+  this.zoom = 1;
+
   this.mode_name = "Diagrams"; // constant
 }
 KnotDiagramView.tool_state = {
@@ -3414,16 +3677,23 @@ KnotDiagramView.tool_state = {
 KnotDiagramView.def_methods({
   copy: function () {
     let view = new KnotDiagramView(this.width, this.height, this.diagram.copy());
+    view.c = this.c.copy();
+    view.zoom = this.zoom;
     return view;
+  },
+
+  mouse_to_pt: function (pt) {
+    assert(pt instanceof Point);
+    return new Point(this.zoom*(pt.x - this.c.x), this.zoom*(pt.y - this.c.y));
   },
 
   find_closest_crossing: function (pt) {
     /* Returns a vertex id for the diagram, or null */
     let diag = this.diagram;
-    let dist = CROSSING_CHANGE_RADIUS;
+    let dist = CROSSING_CHANGE_RADIUS*this.zoom;
     let closest = null;
     diag.verts.forEach((vert, vid) => {
-      if (diag.adj[vid].length === 4) {
+      if (diag.adjs[vid].length === 4) {
         let d = Point.dist(pt, vert);
         if (d <= dist) {
           dist = d;
@@ -3434,11 +3704,17 @@ KnotDiagramView.def_methods({
     return closest;
   },
   draw_crossing_disk: function (ctxt, cpt) {
+    let getX = (x) => {
+      return x/this.zoom+this.c.x;
+    };
+    let getY = (y) => {
+      return y/this.zoom+this.c.y;
+    };
     ctxt.save();
     ctxt.fillStyle = "#0000ff";
     ctxt.globalAlpha = 0.2;
     ctxt.beginPath();
-    ctxt.arc(cpt.x+0.5, cpt.y+0.5, CROSSING_CHANGE_RADIUS, 0, 2*Math.PI);
+    ctxt.arc(getX(cpt.x)+0.5, getY(cpt.y)+0.5, CROSSING_CHANGE_RADIUS, 0, 2*Math.PI);
     ctxt.fill();
     ctxt.restore();
   },
@@ -3446,7 +3722,7 @@ KnotDiagramView.def_methods({
   find_closest_circuit: function (pt) {
     /* Returns a list of darts of the closest circuit to the given point. */
     let diag = this.diagram;
-    let dist = 3*DIAGRAM_LINE_WIDTH;
+    let dist = 3*DIAGRAM_LINE_WIDTH*this.zoom;
     let closest_eid = null;
     diag.edges.forEach((edge, eid) => {
       let d = segment_distance(diag.verts[edge[0]], diag.verts[edge[1]], pt);
@@ -3461,6 +3737,13 @@ KnotDiagramView.def_methods({
     return diag.dart_circuit(closest_eid+1);
   },
   highlight_circuit: function (ctxt, circuit) {
+    let getX = (x) => {
+      return x/this.zoom+this.c.x;
+    };
+    let getY = (y) => {
+      return y/this.zoom+this.c.y;
+    };
+
     let diag = this.diagram;
     let pts = circuit.map(dart => diag.verts[diag.dart_start(dart)]);
     ctxt.save();
@@ -3468,22 +3751,23 @@ KnotDiagramView.def_methods({
     ctxt.globalAlpha = 0.2;
     ctxt.lineWidth = 3*DIAGRAM_LINE_WIDTH;
     ctxt.beginPath();
-    ctxt.moveTo(pts[pts.length-1].x+0.5, pts[pts.length-1].y+0.5);
     pts.forEach(cpt => {
-      ctxt.lineTo(cpt.x+0.5, cpt.y+0.5);
+      ctxt.lineTo(getX(cpt.x)+0.5, getY(cpt.y)+0.5);
     });
+    ctxt.closePath();
     ctxt.stroke();
     ctxt.restore();
 
   },
 
   mousedown: function (pt, e, undo_stack, ctxt) {
+    pt = this.mouse_to_pt(pt);
     let tool = KnotDiagramView.tool_state.tool;
     if (tool === "crossing-change") {
       let closest = this.find_closest_crossing(pt);
       if (closest !== null) {
         let view = this.copy();
-        let adj = view.diagram.adj[closest];
+        let adj = view.diagram.adjs[closest];
         adj.push(adj.shift());
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
@@ -3518,6 +3802,7 @@ KnotDiagramView.def_methods({
     }
   },
   mousemove: function (pt, e, undo_stack, ctxt) {
+    pt = this.mouse_to_pt(pt);
     let tool = KnotDiagramView.tool_state.tool;
     if (tool === "crossing-change") {
       this.paint(ctxt);
@@ -3546,7 +3831,17 @@ KnotDiagramView.def_methods({
     }
   },
   mouseup: function (pt, e, undo_stack, ctxt) {
+    pt = this.mouse_to_pt(pt);
     let tool = KnotDiagramView.tool_state.tool;
+  },
+  mousewheel: function (pt, e, undo_stack, ctxt) {
+    let delta = Math.sign(e.deltaY);
+    let kpt = this.mouse_to_pt(pt);
+    this.zoom *= Math.pow(1.05, delta);
+    let zkpt = this.mouse_to_pt(pt);
+    this.c.x += (zkpt.x - kpt.x) / this.zoom;
+    this.c.y += (zkpt.y - kpt.y) / this.zoom;
+    this.paint(ctxt);
   },
   toolbox: function (undo_stack) {
     let $div = this.$div = Q.div();
@@ -3614,7 +3909,7 @@ KnotDiagramView.def_methods({
         .appendTo($div);
     $mirror.on("click", e => {
       let view = this.copy();
-      view.diagram.adj.forEach(a => {
+      view.diagram.adjs.forEach(a => {
         a.push(a.shift());
       });
       undo_stack.push(view);
@@ -3632,7 +3927,7 @@ KnotDiagramView.def_methods({
         edge[0] = edge[1];
         edge[1] = t_vert;
       });
-      view.diagram.adj = view.diagram.adj.map(a => a.map(d => -d));
+      view.diagram.adjs = view.diagram.adjs.map(a => a.map(d => -d));
       undo_stack.push(view);
     });
 
@@ -3665,19 +3960,31 @@ KnotDiagramView.def_methods({
       undo_stack.push(view);
     });
 
-/*    $div.append(Q.create("h2").append("Isotopy tools"));
+    $div.append(Q.create("h2").append("Isotopy tools"));
 
-    let $simplify = Q.create("input")
+    let $smooth = Q.create("input")
         .prop("type", "button")
-        .value("Simplify")
-        .prop("title", "Use an energy minimization procedure to simplify the diagram")
+        .value("Smooth")
+        .prop("title", "Smooth the diagram a little (not very well)")
         .appendTo($div);
-    $simplify.on("click", e => {
+    $smooth.on("click", e => {
       let view = this.copy();
-      //view.simplify();
+      view.diagram.smooth();
       undo_stack.push(view);
     });
-*/
+
+    let $simplify_mesh = Q.create("input")
+        .prop("type", "button")
+        .value("Simplify mesh")
+        .prop("title", "Simplify the geometry of the diagram")
+        .appendTo($div);
+    $simplify_mesh.on("click", e => {
+      let view = this.copy();
+      view.diagram.simplify_mesh();
+      view.diagram.compact();
+      undo_stack.push(view);
+    });
+
 
     $div.append(Q.create("hr"));
 
@@ -3832,6 +4139,13 @@ KnotDiagramView.def_methods({
     ctxt.fillStyle = "white";
     ctxt.fillRect(0, 0, this.width, this.height);
 
+    let getX = (x) => {
+      return x/this.zoom+this.c.x;
+    };
+    let getY = (y) => {
+      return y/this.zoom+this.c.y;
+    };
+
     let diag = this.diagram;
 
     let seen_darts = new Set;
@@ -3876,7 +4190,7 @@ KnotDiagramView.def_methods({
       }
 
       if (!loop) {
-        let to_remove = 6;
+        let to_remove = CROSSING_GAP * this.zoom;
         while (to_remove > 0 && path.length >= 2) {
           let d = Point.dist(path[0], path[1]);
           if (d <= to_remove) {
@@ -3887,7 +4201,7 @@ KnotDiagramView.def_methods({
             break;
           }
         }
-        to_remove = 6;
+        to_remove = CROSSING_GAP * this.zoom;
         while (to_remove > 0 && path.length >= 2) {
           let d = Point.dist(path[path.length-2], path[path.length-1]);
           if (d <= to_remove) {
@@ -3901,10 +4215,10 @@ KnotDiagramView.def_methods({
       }
 
       ctxt.beginPath();
-      ctxt.moveTo(path[0].x+0.5, path[0].y+0.5);
+      ctxt.moveTo(getX(path[0].x)+0.5, getY(path[0].y)+0.5);
       for (let i = 1; i < path.length; i++) {
         let v = path[i];
-        ctxt.lineTo(v.x+0.5, v.y+0.5);
+        ctxt.lineTo(getX(v.x)+0.5, getY(v.y)+0.5);
       }
       ctxt.strokeStyle = hex_to_rgb(palette[diag.dart_edge(dart)[2]-1]);
       ctxt.lineWidth = DIAGRAM_LINE_WIDTH;
@@ -3929,10 +4243,10 @@ KnotDiagramView.def_methods({
           ctxt.beginPath();
           function f_x(x, y) {
             // x is in direction of arrow tip
-            return p.x + dx*x - dy*y + 0.5;
+            return getX(p.x) + dx*x - dy*y + 0.5;
           }
           function f_y(x, y) {
-            return p.y + dy*x + dx*y + 0.5;
+            return getY(p.y) + dy*x + dx*y + 0.5;
           }
           ctxt.moveTo(f_x(-5, 2), f_y(-5, 2));
           ctxt.lineTo(f_x(0, 0), f_y(0, 0));
@@ -3945,6 +4259,14 @@ KnotDiagramView.def_methods({
     diag.edges.forEach((e, i) => {
       visit_dart(i+1);
     });
+
+    if (0) {
+      ctxt.fillStyle = "white";
+      ctxt.globalAlpha = 1.0;
+      diag.verts.forEach(pt => {
+        ctxt.fillRect(getX(pt.x), getY(pt.y), 2, 2);
+      });
+    }
 
     ctxt.restore();
   }
@@ -4005,6 +4327,14 @@ Q(function () {
   });
   canvas.on("contextmenu", function (e) {
     e.preventDefault();
+  });
+  canvas.on("wheel", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    let view = undo_stack.get();
+    if (view.mousewheel) {
+      view.mousewheel(mousePos(e), e, undo_stack, ctxt);
+    }
   });
 
   function process_img_upload() {

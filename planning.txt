@@ -14,3 +14,9 @@ Manipulations:
 
 - cablings (like longitudinal pushoff)
 - Whitehead doubling
+
+
+Maybe change?
+
+- in the image loader, make the image centered
+- when loading too big images, the way the canvas is used cuts off the image
