@@ -41,8 +41,22 @@ var Q = (function () {
       throw new Error("Invalid argument to Q");
     }
   }
-  Q.create = function (tagname) {
-    return new Q(document.createElement(tagname));
+  Q.create = function (tagname, props) {
+    /* Takes the tagname (a string), optionally an object of properties (or null), and finally a list of things to append. */
+    let el = new Q(document.createElement(tagname));
+    let i = 1;
+    if (typeof props === "object" && !(props instanceof Q)) {
+      i++;
+      if (props) {
+        for (let key in props) {
+          el[0][key] = props[key];
+        }
+      }
+    }
+    for (; i < arguments.length; i++) {
+      el.append(arguments[i]);
+    }
+    return el;
   };
   Q.textNode = function (s) {
     return new Q(document.createTextNode(s));
@@ -69,13 +83,16 @@ var Q = (function () {
       f(new Q(this[i]), i);
     }
   };
-  Q.prototype.append = function (node) {
-    if (node instanceof Q) {
-      node.appendTo(this);
-    } else if (node instanceof Element) {
-      this[0].appendChild(node);
-    } else {
-      this[0].appendChild(document.createTextNode('' + node));
+  Q.prototype.append = function (/*varargs*/) {
+    for (let i = 0; i < arguments.length; i++) {
+      let node = arguments[i];
+      if (node instanceof Q) {
+        node.appendTo(this);
+      } else if (node instanceof Element) {
+        this[0].appendChild(node);
+      } else {
+        this[0].appendChild(document.createTextNode('' + node));
+      }
     }
     return this;
   };
@@ -184,13 +201,7 @@ var Q = (function () {
 
   function tag(tagname) {
     Q[tagname] = function () {
-      var t = Q.create(tagname);
-      if (arguments.length > 0) {
-        for (var i = 0; i < arguments.length; i++) {
-          t.append(arguments[i]);
-        }
-      }
-      return t;
+      return Q.create(tagname, ...arguments);
     };
   }
 

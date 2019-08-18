@@ -1,3 +1,5 @@
+/* global Q */
+
 "use strict";
 
 const WIDTH = 800;
@@ -1435,19 +1437,30 @@ KnotImageImport.def_methods({
   toolbox: function (undo_stack, ctxt) {
     let $div = this.$div = Q.div();
 
-    let $tools = Q.div().appendTo($div);
-
-    let $move = Q.span("\u219d")
-        .addClass("icon-button")
-        .prop("data-tool", "move")
-        .prop("title", "Move image")
-        .appendTo($tools);
-
-    let $crop = Q.span("\u21f2")
-        .addClass("icon-button")
-        .prop("data-tool", "crop")
-        .prop("title", "Crop image")
-        .appendTo($tools);
+    $div.append(
+      Q.div(
+        Q.span({"data-tool": "move",
+                title: "Move image",
+                className: "icon-button"},
+               "\u219d"),
+        Q.span({"data-tool": "crop",
+                title: "Crop image",
+                className: "icon-button"},
+               "\u21f2"),
+      )
+        .on("click", e => {
+          let el = e.target.closest('.icon-button');
+          if (el) {
+            let tool = Q(el).prop('data-tool');
+            if (typeof tool === "string") {
+              e.preventDefault();
+              e.stopPropagation();
+              KnotImageImport.tool_state.tool = tool;
+              this.update_tool(tool);
+            }
+          }
+        })
+    );
 
     this.update_tool = (toolname) => {
       $div.query(".icon-button").forEach($e => {
@@ -1459,95 +1472,81 @@ KnotImageImport.def_methods({
     };
     this.update_tool(KnotImageImport.tool_state.tool);
 
-    $tools.on("click", e => {
-      let el = e.target.closest('.icon-button');
-      if (el) {
-        let tool = Q(el).prop('data-tool');
-        if (typeof tool === "string") {
-          e.preventDefault();
-          e.stopPropagation();
-          KnotImageImport.tool_state.tool = tool;
-          this.update_tool(tool);
-        }
-      }
-    });
+    $div.append(
+      Q.create("label", {title: "Rescale the image"},
+               "Scale: ",
+               Q.create("input", { type: "range",
+                                   min: "1",
+                                   max: "300",
+                                   step: "1",
+                                   className: "slider" })
+               .value(Math.floor(this.scale * 100))
+               .on("input", e => {
+                 let newScale = e.target.value / 100;
+                 this.scale = newScale;
+                 this.paint(ctxt);
+               })
+              ));
 
-    let $scale_label = Q.create("label").append("Scale: ").prop("title", "Rescale the image");
-    $div.append($scale_label);
-    let $scale = Q.create("input")
-        .prop("type", "range")
-        .prop("min", "1")
-        .prop("max", "300")
-        .prop("step", "1")
-        .addClass("slider");
-    $scale.value(Math.floor(this.scale * 100));
-    $scale_label.append($scale);
-    $scale.on("input", e => {
-      let newScale = e.target.value / 100;
-      this.scale = newScale;
-      this.paint(ctxt);
-    });
+    $div.append(Q.create("br"));
 
-    Q.create("br").appendTo($div);
+    $div.append(
+      Q.create("label", { title: "Invert the values of all the colors, for example if this is a chalk drawing." },
+               "Invert colors: ",
+               Q.create("input", {type: "checkbox"})
+               .on("input", e => {
+                 this.invert = e.target.checked;
+                 this.paint(ctxt);
+               })
+              ));
 
-    let $invert_label = Q.create("label").append("Invert colors: ")
-        .prop("title", "Invert the values of all the colors, for example if this is a chalk drawing.");
-    $div.append($invert_label);
-    let $invert = Q.create("input")
-        .prop("type", "checkbox");
-    $invert_label.append($invert);
-    $invert.on("input", e => {
-      this.invert = e.target.checked;
-      this.paint(ctxt);
-    });
+    $div.append(Q.create("br"));
 
-    Q.create("br").appendTo($div);
+    $div.append(
+      Q.create("label", {title: "Blur radius"},
+               "Blur: ",
+               Q.create("input", { type: "range",
+                                   min: "0",
+                                   max: "4",
+                                   step: "1",
+                                   className: "slider" })
+               .value(this.blur)
+               .on("input", e => {
+                 this.blur = e.target.value;
+                 this.paint(ctxt);
+               })
+              ));
 
-    let $blur_label = Q.create("label").append("Blur: ").prop("title", "Blur radius");
-    $div.append($blur_label);
-    let $blur = Q.create("input")
-        .prop("type", "range")
-        .prop("min", "0")
-        .prop("max", "4")
-        .prop("step", "1")
-        .addClass("slider");
-    $blur.value(this.blur);
-    $blur_label.append($blur);
-    $blur.on("input", e => {
-      this.blur = e.target.value;
-      this.paint(ctxt);
-    });
+    $div.append(Q.create("br"));
 
-    Q.create("br").appendTo($div);
+    $div.append(
+      Q.create("label", {title: "Threshold for black"},
+               "Threshold: ",
+               Q.create("input", {type: "range",
+                                  min: "0",
+                                  max: "1000",
+                                  step: "1",
+                                  className: "slider"})
+               .value(Math.floor(this.threshold * 1000))
+               .on("input", e => {
+                 this.threshold = e.target.value / 1000;
+                 this.paint(ctxt);
+               })
+              ));
 
-    let $thresh_label = Q.create("label").append("Threshold: ").prop("title", "Threshold for black");
-    $div.append($thresh_label);
-    let $thresh = Q.create("input")
-        .prop("type", "range")
-        .prop("min", "0")
-        .prop("max", "1000")
-        .prop("step", "1")
-        .addClass("slider");
-    $thresh.value(Math.floor(this.threshold * 1000));
-    $thresh_label.append($thresh);
-    $thresh.on("input", e => {
-      this.threshold = e.target.value / 1000;
-      this.paint(ctxt);
-    });
+    $div.append(Q.create("br"));
 
-    Q.create("br").appendTo($div);
-
-    let $accept = Q.create("input")
-        .prop("type", "button")
-        .prop("value", "Accept")
-        .prop("title", "Take selection to painting mode");
-    $accept.appendTo($div);
-    $accept.on("click", e => {
-      this.paint(ctxt, true);
-      let view = new KnotRasterView(this.width, this.height);
-      view.fromImage(ctxt.getImageData(0, 0, this.width, this.height));
-      undo_stack.push(view);
-    });
+    $div.append(
+      Q.create("input", {type: "button",
+                         value: "Accept",
+                         title: "Take selection to painting mode"})
+        .on("click", e => {
+          this.paint(ctxt, true);
+          let view = new KnotRasterView(this.width, this.height);
+          view.fromImage(ctxt.getImageData(0, 0, this.width, this.height));
+          undo_stack.push(view);
+        })
+    );
 
     return $div;
   },
@@ -1733,105 +1732,105 @@ KnotRasterView.def_methods({
   toolbox: function (undo_stack) {
     let $div = this.$div = Q.div();
 
-    { /* Tools */
-      let $tools = Q.div().appendTo($div);
-      Q.create("h2").append("Tools").appendTo($tools);
-      let $pencil = Q.span("\u270e")
-          .addClass("icon-button")
-          .prop("data-mode", "pencil")
-          .prop("title", "Pencil")
-          .appendTo($tools);
-      let $eraser = Q.span("\u2717")
-          .addClass("icon-button")
-          .prop("data-mode", "eraser")
-          .prop("title", "Eraser [right click]")
-          .appendTo($tools);
+    /* Tools */
+    $div.append(
+      Q.create("div",
+               Q.create("h2", "Tools"),
 
-      this.mark_tool = function (drawing_mode) {
-        /* Set a tool button to be active, depending on the mode */
-        $pencil.removeClass("active");
-        $eraser.removeClass("active");
-        switch (drawing_mode) {
-        case "pencil":
-          $pencil.addClass("active");
-          break;
-        case "eraser":
-          $eraser.addClass("active");
-          break;
-        }
-      };
-      this.mark_tool(KnotRasterView.painting_state.mode);
-      $tools.on("click", e => {
-        let el = e.target.closest('.icon-button');
-        if (el) {
-          let mode = Q(el).prop("data-mode");
-          if (mode) {
-            e.preventDefault();
-            e.stopPropagation();
-            KnotRasterView.painting_state.mode = mode;
-            this.mark_tool(mode);
+               Q.create("span", {"data-tool": "pencil",
+                                 title: "Pencil",
+                                 className: "icon-button"},
+                        "\u270e"),
+
+               Q.create("span", {"data-tool": "eraser",
+                                 title: "Eraser [right click]",
+                                 className: "icon-button"},
+                        "\u2717")
+              )
+        .on("click", e => {
+          let el = e.target.closest('.icon-button');
+          if (el) {
+            let mode = el['data-tool'];
+            if (mode) {
+              e.preventDefault();
+              e.stopPropagation();
+              KnotRasterView.painting_state.mode = mode;
+              this.mark_tool(mode);
+            }
           }
+        })
+    );
+
+    this.mark_tool = function (toolname) {
+      /* Set a tool button to be active, depending on the mode */
+
+      $div.query(".icon-button").forEach($e => {
+        let button_tool = $e.prop("data-tool");
+        if (typeof button_tool === "string") {
+          $e.toggleClass("active", button_tool === toolname);
         }
       });
-    }
+    };
+    this.mark_tool(KnotRasterView.painting_state.mode);
 
-    { /* Over/under */
-      let $height = Q.div().appendTo($div);
-      Q.create("h2").append("Pencil mode").appendTo($height);
-      let $over = Q.span("\u2197")
-          .addClass("icon-button")
-          .prop("data-height", 1)
-          .prop("title", "Go over")
-          .appendTo($height);
-      let $same = Q.span("\u2192")
-          .addClass("icon-button")
-          .prop("data-height", 0)
-          .prop("title", "Go through (no auto-gaps)")
-          .appendTo($height);
-      let $under = Q.span("\u2198")
-          .addClass("icon-button")
-          .prop("data-height", -1)
-          .prop("title", "Go under [shift]")
-          .appendTo($height);
-      this.mark_height = function (go_over) {
-        $over.toggleClass("active", go_over > 0);
-        $same.toggleClass("active", go_over === 0);
-        $under.toggleClass("active", go_over < 0);
-      };
-      this.mark_height(KnotRasterView.painting_state.go_over);
-      $height.on("click", e => {
-        let el = e.target.closest('.icon-button');
-        if (el) {
-          let height = Q(el).prop("data-height");
-          if (typeof height === "number") {
-            e.preventDefault();
-            e.stopPropagation();
-            KnotRasterView.painting_state.go_over = height;
-            this.mark_height(height);
+    /* Over/under */
+    $div.append(
+      Q.create("div",
+               Q.create("h2").append("Pencil mode"),
+
+               /* over */
+               Q.create("span", {"data-height": 1,
+                                 title: "Go over",
+                                 className: "icon-button"},
+                        "\u2197"),
+               /* same */
+               Q.create("span", {"data-height": 0,
+                                 title: "Go through (no auto-gaps)",
+                                 className: "icon-button"},
+                        "\u2192"),
+               /* under */
+               Q.create("span", {"data-height": -1,
+                                 title: "Go under [shift]",
+                                 className: "icon-button"},
+                        "\u2198"),
+
+              )
+        .on("click", e => {
+          let el = e.target.closest('.icon-button');
+          if (el) {
+            let height = Q(el).prop("data-height");
+            if (typeof height === "number") {
+              e.preventDefault();
+              e.stopPropagation();
+              KnotRasterView.painting_state.go_over = height;
+              this.mark_height(height);
+              KnotRasterView.painting_state.mode = "pencil";
+              this.mark_tool("pencil");
+            }
           }
+        })
+    );
+
+    this.mark_height = function (go_over) {
+      $div.query(".icon-button").forEach($e => {
+        let button_height = $e.prop("data-height");
+        if (typeof button_height === "number") {
+          $e.toggleClass("active", go_over === button_height);
         }
       });
-    }
+    };
+    this.mark_height(KnotRasterView.painting_state.go_over);
 
     { /* Colors */
       let $colors = Q.div().appendTo($div);
-      Q.create("h2").append("Pencil colors").appendTo($colors);
+      $colors.append(Q.create("h2", "Pencil colors"));
       palette.forEach((hex, i) => {
-        let $b = Q.span().addClass("icon-button")
-            .prop("data-color", i+1)
-            .prop("title", "Color " + (i+1))
-            .appendTo($colors);
-        let $bs = Q.span(" ").addClass("icon-color")
-            .css("background", hex_to_rgb(hex))
-            .appendTo($b);
+        $colors.append(Q.create("span", {className: "icon-button",
+                                         "data-color": i+1,
+                                         title: "Color " + (i+1)},
+                                Q.create("span", {className: "icon-color"})
+                                .css("background", hex_to_rgb(hex))));
       });
-      this.mark_color = function (i) {
-        /* Set a color button to be active, depending on the color index i. */
-        $colors.query(".icon-button").forEach(b => {
-          b.toggleClass("active", b.prop("data-color") === i);
-        });
-      };
-      this.mark_color(KnotRasterView.painting_state.color);
       $colors.on("click", e => {
         let el = e.target.closest('.icon-button');
         if (el) {
@@ -1841,91 +1840,92 @@ KnotRasterView.def_methods({
             e.stopPropagation();
             KnotRasterView.painting_state.color = color;
             this.mark_color(color);
+            KnotRasterView.painting_state.mode = "pencil";
+            this.mark_tool("pencil");
           }
         }
       }, true);
+
+      this.mark_color = function (i) {
+        /* Set a color button to be active, depending on the color index i. */
+        $colors.query(".icon-button").forEach(b => {
+          b.toggleClass("active", b.prop("data-color") === i);
+        });
+      };
+      this.mark_color(KnotRasterView.painting_state.color);
     }
 
     $div.append(Q.create("br"));
 
-    let $load_image_label = Q.create("label")
-        .prop("title", "Load an image from a file (can also drag and drop from the filesystem)")
-        .append("Load image: ").appendTo($div);
-    let $load_image = Q.create("input")
-        .prop("type", "file");
-    $load_image_label.append($load_image);
-    $load_image.on("input", e => {
-      let file = e.target.files[0];
-      if (file) {
-        let reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onloadend = () => {
-          let img = document.createElement("img");
-          img.onload = () => {
-            undo_stack.push(new KnotImageImport(WIDTH, HEIGHT, img));
-          };
-          img.src = reader.result;
-        };
-      }
-    });
-
-    Q.create("hr").appendTo($div);
-
-    let $thin = Q.create("input")
-        .prop("type", "button")
-        .value("Thin")
-        .prop("title", "Clear boundary pixels of curves")
-        .appendTo($div);
-    $thin.on("click", e => {
-      let knot = this.copy();
-      knot.thin();
-      undo_stack.push(knot);
-    });
-
-    let $thicken = Q.create("input")
-        .prop("type", "button")
-        .value("Thicken")
-        .prop("title", "Add boundary pixels to curves")
-        .appendTo($div);
-    $thicken.on("click", e => {
-      let knot = this.copy();
-      knot.thicken();
-      undo_stack.push(knot);
-    });
-
-    $div.append(Q.create("br"));
-
-    let $clean = Q.create("input")
-        .prop("type", "button")
-        .value("Clean up")
-        .prop("title", "Find cores of curves")
-        .appendTo($div);
-    $clean.on("click", e => {
-      let knot = this.copy();
-      knot.clean_up();
-      undo_stack.push(knot);
-    });
+    $div.append(
+      Q.create("label", {title: "Load an image from a file (can also drag and drop from the filesystem or sometimes copy and paste)"},
+               "Load image: ",
+               Q.create("input", {type: "file"})
+               .on("input", e => {
+                 let file = e.target.files[0];
+                 if (file) {
+                   let reader = new FileReader();
+                   reader.readAsDataURL(file);
+                   reader.onloadend = () => {
+                     let img = document.createElement("img");
+                     img.onload = () => {
+                       undo_stack.push(new KnotImageImport(WIDTH, HEIGHT, img));
+                     };
+                     img.src = reader.result;
+                   };
+                 }
+               })
+              ));
 
     $div.append(Q.create("hr"));
 
-    let $convert = Q.create("input")
-        .prop("type", "button")
-        .value("Convert to diagram")
-        .prop("title", "Analyze picture and convert to a diagram")
-        .appendTo($div);
-    $convert.on("click", e => {
-      undo_stack.push(this.convert());
-    });
+    $div.append(Q.create("input", {type: "button",
+                                   title: "Find cores of curves by morphological thinning"})
+                .value("Clean up")
+                .on("click", e => {
+                  let knot = this.copy();
+                  knot.clean_up();
+                  undo_stack.push(knot);
+                }));
+
+    $div.append(Q.create("br"));
+
+    $div.append(Q.create("input", {type: "button",
+                                   title: "Clear boundary pixels of curves"})
+                .value("Thin")
+                .on("click", e => {
+                  let knot = this.copy();
+                  knot.thin();
+                  undo_stack.push(knot);
+                }));
+
+    $div.append(Q.create("input", {type: "button",
+                                   title: "Add boundary pixels to curves"})
+                .value("Thicken")
+                .on("click", e => {
+                  let knot = this.copy();
+                  knot.thicken();
+                  undo_stack.push(knot);
+                }));
+
+    $div.append(Q.create("hr"));
+
+    $div.append(Q.create("input", {type: "button",
+                                   title: "Analyze picture and convert to a diagram"})
+                .value("Convert to diagram")
+                .on("click", e => {
+                  undo_stack.push(this.convert());
+                }));
 
     if (this.the_error) {
-      let $error = Q.div().addClass("error");
-      $error.append(Q.create("h2").append("Error"));
+      let $error = Q.div({className: "error"},
+                         Q.create("h2", "Error"))
+          .appendTo($div);
       if (this.the_error instanceof Array) {
         this.the_error.forEach(err => $error.append(Q.p(''+err)));
       } else {
         $error.append(Q.p(''+this.the_error));
       }
-      $div.append($error);
     }
 
     return $div;
@@ -4313,7 +4313,15 @@ Q(function () {
   canvas.on("mousedown", function (e) {
     e.preventDefault();
     e.stopPropagation();
-    undo_stack.get().mousedown(mousePos(e), e, undo_stack, ctxt);
+    if (e.button === 3) {
+      // TODO reconsider whether these buttons ought to undo/redo (or
+      // whether should be click handler)
+      undo_stack.undo();
+    } else if (e.button === 4) {
+      undo_stack.redo();
+    } else {
+      undo_stack.get().mousedown(mousePos(e), e, undo_stack, ctxt);
+    }
   });
   canvas.on("mousemove", function (e) {
     e.preventDefault();
