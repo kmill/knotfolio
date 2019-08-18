@@ -101,7 +101,8 @@ function equal(a, b) {
   return a === b;
 }
 function compare(a, b) {
-  /* Returns "a - b" for comparison purposes. */
+  /* Returns "a - b" for comparison purposes. Does lexicographical
+  ordering for things that are instanceof Array. */
   assert(typeof a === typeof b);
   if (typeof a === "object") {
     if (a.compare) {
@@ -130,29 +131,31 @@ function compare(a, b) {
   }
 }
 
-function escapeChar(c) {
-  switch (c) {
-  case "\0": return "\\0";
-  case "\"": return "\\\"";
-  case "\\": return "\\\\";
-  case "\n": return "\\n";
-  case "\r": return "\\r";
-  case "\v": return "\\v";
-  case "\t": return "\\t";
-  case "\b": return "\\b";
-  case "\f": return "\\f";
-  }
-  var code = c.charCodeAt(0);
-  if (32 <= code && code < 127) {
-    return c;
-  } else if (code < 256) {
-    return "\\x" + (code < 0x10 ? "0" : "") + code.toString(16).toUpperCase();
-  } else {
-    return "\\u" + (code < 0x1000 ? "0" : "") + code.toString(16).toUpperCase();
-  }
-}
-
 function toString(o) {
+  /* Give a string representation that tries somewhat to be valid
+     JavaScript code.  This is somewhat like repr in Python. */
+  function escapeChar(c) {
+    switch (c) {
+    case "\0": return "\\0";
+    case "\"": return "\\\"";
+    case "\\": return "\\\\";
+    case "\n": return "\\n";
+    case "\r": return "\\r";
+    case "\v": return "\\v";
+    case "\t": return "\\t";
+    case "\b": return "\\b";
+    case "\f": return "\\f";
+    }
+    var code = c.charCodeAt(0);
+    if (32 <= code && code < 127) {
+      return c;
+    } else if (code < 256) {
+      return "\\x" + (code < 0x10 ? "0" : "") + code.toString(16).toUpperCase();
+    } else {
+      return "\\u" + (code < 0x1000 ? "0" : "") + code.toString(16).toUpperCase();
+    }
+  }
+
   if (o instanceof Array && o.toString === Array.prototype.toString) {
     return "[" + o.map(toString).join(", ") + "]";
   } else if (typeof o === "object") {
