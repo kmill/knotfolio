@@ -4336,15 +4336,7 @@ Q(function () {
   canvas.on("mousedown", function (e) {
     e.preventDefault();
     e.stopPropagation();
-    if (e.button === 3) {
-      // TODO reconsider whether these buttons ought to undo/redo (or
-      // whether should be click handler)
-      undo_stack.undo();
-    } else if (e.button === 4) {
-      undo_stack.redo();
-    } else {
-      undo_stack.get().mousedown(mousePos(e), e, undo_stack, ctxt);
-    }
+    undo_stack.get().mousedown(mousePos(e), e, undo_stack, ctxt);
   });
   canvas.on("mousemove", function (e) {
     e.preventDefault();
