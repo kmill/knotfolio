@@ -2,21 +2,22 @@
 
 "use strict";
 
+///// Constants
+
 const WIDTH = 800;
 const HEIGHT = 800;
 const PAINT_RADIUS = 1;
 const PAINT_GAP = 2;
 const ERASE_RADIUS = 5;
-const MIN_LINE_LENGTH = 2;
-const MAX_PPREV_DIST = 2*PAINT_RADIUS+1 + 2*PAINT_GAP;
+const MIN_LINE_LENGTH = 2; // between mouse events
+const MAX_PPREV_DIST = 2*PAINT_RADIUS+1 + 2*PAINT_GAP; // for pencil-under
 const SPUR_LENGTH = 5; // the maximum-length spurs that will be auto-deleted in clean-up
 const ERROR_RADIUS = 6.5; // the radius of the red "error circles"
 const MAX_GAP_LENGTH = 70; // for under-crossings and gaps in lines
 
-const CROSSING_GAP = 8;
-
-const CROSSING_CHANGE_RADIUS = 10;
-const DIAGRAM_LINE_WIDTH = 3;
+const DIAGRAM_LINE_WIDTH = 3; // the width of the lines when drawing a diagram
+const CROSSING_GAP = 8; // the gap for drawing crossings
+const CROSSING_CHANGE_RADIUS = 10; // the radius of the disk shown when hovering over a crossing
 
 /* Colors for link components */
 const palette = [
@@ -2982,6 +2983,21 @@ KnotDiagramGraph.def_methods({
       }
     }
   },
+  auto_color: function () {
+    /* Assigns colors to the components in an arbitrary order */
+    let next_color = 0;
+    let seen = new Array(this.edges.length);
+    for (let eid = 0; eid < this.edges.length; eid++) {
+      if (!seen[eid]) {
+        let color = (next_color++) % palette.length;
+        this.dart_circuit(eid + 1).forEach(dart => {
+          let deid = Math.abs(dart) - 1;
+          seen[deid] = true;
+          this.edges[deid][2] = color + 1;
+        });
+      }
+    }
+  },
   delete_component: function (dart_id) {
     /* Deletes the entire component containing the given dart. Assumes
        the diagram is oriented.*/
@@ -3648,10 +3664,9 @@ function identify_link(diagram) {
   let names = options.map(o => {
     let name = o.name;
     if (o.katlas) {
-      name = Q.create("a")
-        .prop("href", "http://katlas.math.toronto.edu/wiki/" + o.katlas)
-        .prop("target", "_blank")
-        .append(name);
+      name = Q.create("a", {href: "http://katlas.math.toronto.edu/wiki/" + o.katlas,
+                            target: "_blank"},
+                      name);
     }
     return name;
   });
@@ -3941,6 +3956,14 @@ KnotDiagramView.def_methods({
       view.diagram.make_alternating();
       undo_stack.push(view);
     });
+    $div.append(Q.create("input", {type: "button",
+                                   title: "Assign distinct colors to each component"})
+                .value("Auto-color")
+                .on("click", e => {
+                  let view = this.copy();
+                  view.diagram.auto_color();
+                  undo_stack.push(view);
+                }));
 
     $div.append(Q.create("br"));
 
