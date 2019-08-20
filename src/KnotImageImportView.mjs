@@ -3,6 +3,7 @@
 import {assert, clamp} from "./util.mjs";
 import Q from "./kq.mjs";
 import {KnotRasterView} from "./KnotRasterView.mjs";
+import {Point} from "./geom2d.mjs";
 
 let global_tool_state = {
   tool: "crop"
@@ -68,6 +69,13 @@ export class KnotImageImportView {
 
   mousedown(pt, e, undo_stack, ctxt) {
     let tool = global_tool_state.tool;
+    if (e.button === 2) {
+      tool = "move";
+      if (this.update_tool) {
+        this.update_tool(tool);
+      }
+    }
+
     if (tool === "crop") {
       this.crop_start = pt;
       this.update_crop(this.crop_start, pt);
@@ -77,35 +85,44 @@ export class KnotImageImportView {
     }
   }
   mousemove(pt, e, undo_stack, ctxt) {
-    let tool = global_tool_state.tool;
-    if (tool === "crop") {
-      if (this.crop_start) {
-        this.update_crop(this.crop_start, pt);
-        this.paint(ctxt);
-      }
-    } else if (tool === "move") {
-      if (this.move_start) {
-        this.x += (pt.x - this.move_start.x);
-        this.y += (pt.y - this.move_start.y);
-        this.move_start = pt;
-        this.paint(ctxt);
-      }
+    if (!e.buttons) {
+      this.mouseup(pt, e, undo_stack, ctxt);
+      return;
+    }
+    if (this.crop_start) {
+      this.update_crop(this.crop_start, pt);
+      this.paint(ctxt);
+    } else if (this.move_start) {
+      this.x += (pt.x - this.move_start.x);
+      this.y += (pt.y - this.move_start.y);
+      this.move_start = pt;
+      this.paint(ctxt);
     }
   }
   mouseup(pt, e, undo_stack, ctxt) {
-    let tool = global_tool_state.tool;
-    if (tool === "crop") {
-      if (this.crop_start) {
-        this.update_crop(this.crop_start, pt);
-        this.crop_start = null;
-        this.paint(ctxt);
-      }
-    } else if (tool === "move") {
-      if (this.move_start) {
-        this.move_start = null;
-        this.paint(ctxt);
-      }
+    if (this.crop_start) {
+      this.update_crop(this.crop_start, pt);
+      this.crop_start = null;
+      this.paint(ctxt);
+    } else if (this.move_start) {
+      this.move_start = null;
+      this.paint(ctxt);
     }
+    this.update_tool(global_tool_state.tool);
+  }
+  mouse_to_pt(pt) {
+    assert(pt instanceof Point);
+    return new Point((pt.x - this.x)/this.scale,
+                     (pt.y - this.y)/this.scale);
+  }
+  mousewheel(pt, e, undo_stack, ctxt) {
+    let delta = Math.sign(e.deltaY);
+    let kpt = this.mouse_to_pt(pt);
+    this.set_scale(this.scale * Math.pow(1.05, -delta));
+    let zkpt = this.mouse_to_pt(pt);
+    this.x += this.scale*(zkpt.x - kpt.x);
+    this.y += this.scale*(zkpt.y - kpt.y);
+    this.paint(ctxt);
   }
   toolbox(undo_stack, ctxt) {
     let $div = this.$div = Q.div();
@@ -113,7 +130,7 @@ export class KnotImageImportView {
     $div.append(
       Q.div(
         Q.span({"data-tool": "move",
-                title: "Move image",
+                title: "Move image [right click]",
                 className: "icon-button"},
                "\u219d"),
         Q.span({"data-tool": "crop",
@@ -145,21 +162,27 @@ export class KnotImageImportView {
     };
     this.update_tool(global_tool_state.tool);
 
+    var $scale;
     $div.append(
-      Q.create("label", {title: "Rescale the image"},
+      Q.create("label", {title: "Rescale the image [mouse wheel]"},
                "Scale: ",
-               Q.create("input", { type: "range",
-                                   min: "1",
-                                   max: "300",
-                                   step: "1",
-                                   className: "slider" })
-               .value(Math.floor(this.scale * 100))
-               .on("input", e => {
-                 let newScale = e.target.value / 100;
-                 this.scale = newScale;
-                 this.paint(ctxt);
-               })
+               $scale = Q.create("input", { type: "range",
+                                            min: "1",
+                                            max: "300",
+                                            step: "1",
+                                            className: "slider" })
               ));
+    $scale.on("input", e => {
+      this.set_scale(e.target.value / 100);
+      this.paint(ctxt);
+    });
+
+    this.set_scale = (new_scale) => {
+      new_scale = clamp(new_scale, 0.01, 3.0);
+      $scale.value(Math.floor(this.scale * 100));
+      this.scale = new_scale;
+    };
+    this.set_scale(this.scale);
 
     $div.append(Q.create("br"));
 
@@ -237,6 +260,32 @@ export class KnotImageImportView {
         ry = this.sy*this.scale+this.y,
         rwidth = this.swidth*this.scale,
         rheight = this.sheight*this.scale;
+    let sx = this.sx,
+        sy = this.sy,
+        swidth = this.swidth,
+        sheight = this.sheight;
+
+    if (rx < 0) {
+      swidth += (rx) / this.scale;
+      sx = (0 - this.x) / this.scale;
+      rwidth += rx;
+      rx = 0;
+    }
+    if (rwidth > this.width) {
+      swidth -= (rwidth - this.width) / this.scale;
+      rwidth = this.width;
+    }
+    if (ry < 0) {
+      sheight += (ry) / this.scale;
+      sy = (0 - this.y) / this.scale;
+      rheight += ry;
+      ry = 0;
+    }
+    if (rheight > this.height) {
+      sheight -= (rheight - this.height) / this.scale;
+      rheight = this.height;
+    }
+
 
     if (!onlyCropped) {
       ctxt.globalAlpha = 0.3;
@@ -254,35 +303,38 @@ export class KnotImageImportView {
     tmp_ctxt.fillRect(0, 0, rwidth + 1, rheight + 1);
 
     tmp_ctxt.drawImage(this.img,
-                       this.sx, this.sy, this.swidth, this.sheight,
+                       sx, sy, swidth, sheight,
                        0, 0, rwidth, rheight);
 
     let imgdata = tmp_ctxt.getImageData(0, 0, Math.max(1, Math.floor(rwidth)), Math.max(1, Math.floor(rheight)));
     let data = imgdata.data;
 
+    let width = imgdata.width;
+    let height = imgdata.height;
+    let gdata = new Uint8Array(width * height);
+
     // make grayscale (put everything into channel 1)
     let do_invert = this.invert;
-    for (let i = 0; i < data.length; i += 4) {
-      let c = (data[i] + data[i+1] + data[i+2])/3;
+    for (let i = 0; i < gdata.length; i++) {
+      let c = (data[4*i] + data[4*i+1] + data[4*i+2])/3;
       if (do_invert) {
         c = 255 - c;
       }
-      data[i] = c;
+      gdata[i] = c;
     }
 
     // blur this.blur times
-    let width = imgdata.width;
-    let height = imgdata.height;
     let buf = new Uint8Array(width*height);
     for (let time = 0; time < this.blur; time++) {
+      buf.set(gdata);
       // approximate 3x3 Gaussian blur into buf
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
+      for (let y = 1; y + 1 < height; y++) {
+        for (let x = 1; x + 1 < width; x++) {
           let sum = 0;
           for (let dy = -1; dy <= 1; dy++) {
-            let y2 = clamp(y + dy, 0, height-1);
+            let y2 = y + dy;
             for (let dx = -1; dx <= 1; dx++) {
-              let x2 = clamp(x + dx, 0, width-1);
+              let x2 = x + dx;
               let i = Math.abs(dx) + Math.abs(dy);
               let k = 1;
               if (i === 0) {
@@ -290,26 +342,25 @@ export class KnotImageImportView {
               } else if (i === 1) {
                 k = 2;
               }
-              sum += data[4*(width*y2 + x2)] * k;
+              sum += buf[width*y2 + x2] * k;
             }
           }
-          buf[width*y+x] = sum / 16;
-        }
-      }
-      // copy buf to data
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          data[4*(width*y + x)] = buf[width*y+x];
+          gdata[width*y+x] = sum / 16;
         }
       }
     }
 
     // threshold
-    for (let i = 0; i < data.length; i += 4) {
-      let c = data[i];
+    for (let i = 0; i < gdata.length; i++) {
+      let c = gdata[i];
       c = (c/255 <= this.threshold) ? 0 : 255;
-      data[i] = data[i+1] = data[i+2] = c;
-      data[i+3] = 255;
+      gdata[i] = c;
+    }
+
+    for (let i = 0; i < gdata.length; i++) {
+      let c = gdata[i];
+      data[4*i] = data[4*i+1] = data[4*i+2] = c;
+      data[4*i+3] = 255;
     }
 
     ctxt.putImageData(imgdata, rx, ry);
