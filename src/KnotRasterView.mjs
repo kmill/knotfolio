@@ -3,7 +3,7 @@
 import {assert, clamp, hex_to_rgb} from "./util.mjs";
 import {MIN_LINE_LENGTH, MAX_PPREV_DIST, ERASE_RADIUS, PAINT_RADIUS,
         PAINT_GAP, WIDTH, HEIGHT, ERROR_RADIUS, SPUR_LENGTH, MAX_GAP_LENGTH, palette} from "./constants.mjs";
-import {Point, line_points, segments_intersect, segment_contains, calculate_angle} from "./geom2d.mjs";
+import {Point, line_points, segments_intersect, segment_contains, pseudo_angle} from "./geom2d.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {KnotImageImportView} from "./KnotImageImportView.mjs";
 import {KnotDiagramView} from "./KnotDiagramView.mjs";
@@ -1176,7 +1176,7 @@ export class KnotRasterView {
       let vert = verts[i];
       let lverts = list.map(dart => diagram.dart_end(dart));
       // The angles are negative since the coordinate system has inverted y due to the canvas.
-      let angles = lverts.map(vi => -calculate_angle(vert, verts[lverts[0]], verts[vi]));
+      let angles = lverts.map(vi => -pseudo_angle(vert, verts[vi]));
       function mswap(i, j) {
         /* maybe swap the angle and list arrays, depending on the value of the angle */
         if (angles[i] > angles[j]) {

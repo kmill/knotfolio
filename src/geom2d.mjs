@@ -37,12 +37,14 @@ export class Point {
   }
 
   static norm_diff(p1, p2) {
-    /* Gives p1 - p2, normalized.  Returns a point even though it should return a vector. */
+    /* Gives p1 - p2, normalized.  Returns a point even though it
+    should return a vector. Assumes the points are distinct. */
     assert(p1 instanceof Point);
     assert(p2 instanceof Point);
     let dx = p1.x - p2.x,
         dy = p1.y - p2.y;
     let norm = Math.sqrt(dx*dx + dy*dy);
+    assert(norm > 0);
     return new Point(dx/norm, dy/norm);
   }
 }
@@ -61,6 +63,15 @@ export function calculate_angle(p0, p1, p2) {
   let x = (vx*wx + vy*wy)/vnorm,
       y = (-vy*wx + vx*wy)/vnorm;
   return Math.atan2(y, x);
+}
+
+export function pseudo_angle(p0, p1) {
+  /* Takes the ray from p0 through p1 and gives an "angle" with respect to the x-axis.  The "angle" is a monotonically increasing function of angle, and it lies in [0,1). */
+  // Modified from delaunator.js
+  let dx = p1.x - p0.x,
+      dy = p1.y - p0.y;
+  let p = dx / (Math.abs(dx) + Math.abs(dy));
+  return (dy >= 0 ? 1 - p : 3 + p) / 4;
 }
 
 export function segment_contains(p1, p2, q, error=1e-10) {
@@ -113,7 +124,17 @@ export function segments_intersect(p1, p2, q1, q2) {
   assert(p2 instanceof Point);
   assert(q1 instanceof Point);
   assert(q2 instanceof Point);
+
+  if (Point.equal(p1, q1) || Point.equal(p1, q2)) {
+    return p1;
+  } else if (Point.equal(p2, q1) || Point.equal(p2, q2)) {
+    return p2;
+  }
+
   let det = (p1.x-p2.x)*(q1.y-q2.y)-(p1.y-p2.y)*(q1.x-q2.x);
+  if (det === 0) {
+    return null;
+  }
   let xi = ((p1.x*p2.y-p1.y*p2.x)*(q1.x-q2.x)-(p1.x-p2.x)*(q1.x*q2.y-q1.y*q2.x))/det;
   if (((p1.x <= xi && xi <= p2.x) || (p2.x <= xi && xi <= p1.x)) &&
       ((q1.x <= xi && xi <= q2.x) || (q2.x <= xi && xi <= q1.x))) {
@@ -125,6 +146,43 @@ export function segments_intersect(p1, p2, q1, q2) {
   }
   return null;
 }
+
+// export function segments_intersect(p1, p2, q1, q2) {
+//   /* Checks if the line segments (p1,p2) and (q1,q2) intersect.
+//      Returns the intersection point if they do intersect. */
+//   assert(p1 instanceof Point);
+//   assert(p2 instanceof Point);
+//   assert(q1 instanceof Point);
+//   assert(q2 instanceof Point);
+
+//   function pline(a, b, p) {
+//     return ((a.x-p.x)*(a.x-b.x)+(a.y-p.y)*(a.y-b.y)) / ((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y));
+//   }
+
+//   let a = p1, b = p2,
+//       c = q1, d = q2;
+
+//   let det = (a.x-b.x)*(c.y-d.y) - (a.y-b.y)*(c.x-d.x);
+//   if (det === 0) {
+//     return null;
+//   }
+//   console.log('det='+det);
+
+//   let d1 = a.x*b.y - a.y*b.x,
+//       d2 = c.x*d.y - c.y*d.x;
+//   let pt = new Point((d1*(c.x-d.x) - d2*(a.x-b.x)) / det,
+//                      (d1*(c.y-d.y) - d2*(a.y-b.y)) / det);
+
+//   let t1 = pline(p1, p2, pt),
+//       t2 = pline(q1, q2, pt);
+//   console.log("t=" + toString([t1, t2]));
+//   console.log("pt=" + pt);
+//   if (0 <= t1 && t1 <= 1 && 0 <= t2 && t2 <= 1) {
+//     return pt;
+//   } else {
+//     return null;
+//   }
+// }
 
 export function point_along(p1, p2, t) {
   /* Given a line parameterized so that t=0 is p1 and t=1 is p2,
