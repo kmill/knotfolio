@@ -4,6 +4,7 @@ import {assert, clamp} from "./util.mjs";
 import Q from "./kq.mjs";
 import {KnotRasterView} from "./KnotRasterView.mjs";
 import {Point} from "./geom2d.mjs";
+import {stackBlurRGB} from "./StackBlur.mjs";
 
 let global_tool_state = {
   tool: "crop"
@@ -30,7 +31,8 @@ export class KnotImageImportView {
 
     this.invert = false;
     this.blur = 0;
-    this.threshold = 0.5;
+    this.adaptive = 20;
+    this.threshold = 0.00;
 
     this.tmp_canvas = document.createElement("canvas");
     this.tmp_canvas.width = this.width;
@@ -203,7 +205,7 @@ export class KnotImageImportView {
                "Blur: ",
                Q.create("input", { type: "range",
                                    min: "0",
-                                   max: "4",
+                                   max: "10",
                                    step: "1",
                                    className: "slider" })
                .value(this.blur)
@@ -216,11 +218,28 @@ export class KnotImageImportView {
     $div.append(Q.create("br"));
 
     $div.append(
+      Q.create("label", {title: "Adaptive radius"},
+               "Adaptive radius: ",
+               Q.create("input", { type: "range",
+                                   min: "1",
+                                   max: "40",
+                                   step: "1",
+                                   className: "slider" })
+               .value(this.adaptive)
+               .on("input", e => {
+                 this.adaptive = e.target.value;
+                 this.paint(ctxt);
+               })
+              ));
+
+    $div.append(Q.create("br"));
+
+    $div.append(
       Q.create("label", {title: "Threshold for black"},
                "Threshold: ",
                Q.create("input", {type: "range",
-                                  min: "0",
-                                  max: "1000",
+                                  min: "-500",
+                                  max: "500",
                                   step: "1",
                                   className: "slider"})
                .value(Math.floor(this.threshold * 1000))
@@ -311,6 +330,9 @@ export class KnotImageImportView {
 
     let width = imgdata.width;
     let height = imgdata.height;
+
+    stackBlurRGB(data, width, height, this.blur);
+
     let gdata = new Uint8Array(width * height);
 
     // make grayscale (put everything into channel 1)
@@ -323,36 +345,12 @@ export class KnotImageImportView {
       gdata[i] = c;
     }
 
-    // blur this.blur times
-    let buf = new Uint8Array(width*height);
-    for (let time = 0; time < this.blur; time++) {
-      buf.set(gdata);
-      // approximate 3x3 Gaussian blur into buf
-      for (let y = 1; y + 1 < height; y++) {
-        for (let x = 1; x + 1 < width; x++) {
-          let sum = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            let y2 = y + dy;
-            for (let dx = -1; dx <= 1; dx++) {
-              let x2 = x + dx;
-              let i = Math.abs(dx) + Math.abs(dy);
-              let k = 1;
-              if (i === 0) {
-                k = 4;
-              } else if (i === 1) {
-                k = 2;
-              }
-              sum += buf[width*y2 + x2] * k;
-            }
-          }
-          gdata[width*y+x] = sum / 16;
-        }
-      }
-    }
+    stackBlurRGB(data, width, height, this.adaptive);
 
     // threshold
     for (let i = 0; i < gdata.length; i++) {
-      let c = gdata[i];
+      let adapt = (data[4*i] + data[4*i+1] + data[4*i+2])/3;
+      let c = gdata[i] - adapt;
       c = (c/255 <= this.threshold) ? 0 : 255;
       gdata[i] = c;
     }
