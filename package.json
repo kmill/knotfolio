@@ -1,0 +1,14 @@
+{
+  "name": "knotfolio",
+  "version": "0.0.1",
+  "description": "Knot diagram drawing, manipulation, and invariants",
+  "main": "src/main.mjs",
+  "scripts": {
+    "test": "sh run_tests.sh"
+  },
+  "author": "Kyle Miller",
+  "license": "GPL-2.0-or-later",
+  "browserslist": [
+    "last 1 Chrome versions"
+  ]
+}

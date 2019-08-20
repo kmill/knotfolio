@@ -20,3 +20,4 @@ Maybe change?
 
 - in the image loader, make the image centered
 - when loading too big images, the way the canvas is used cuts off the image
+- for alexander polynomial, use bignums since gcd can have overflows

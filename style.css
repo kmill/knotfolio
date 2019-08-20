@@ -151,3 +151,16 @@ textarea.code-data {
     font-weight: bold;
     color: #777;
 }
+
+var + sup {
+    margin-left: 2pt;
+}
+
+
+form.inline-form {
+    display: inline-block;
+}
+
+.calc-error {
+    color: #770000;
+}

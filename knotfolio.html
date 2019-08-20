@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css">
+    <script src="./src/main.mjs"></script>
+  </head>
+  <body>
+    <table id="ui-table">
+      <tr>
+        <td>
+          <div id="header">
+            <div id="project-name">LinkEdit</div>
+            <div id="undo">
+              <input type="button" class="undo" value="&lt;" title="Undo">
+              <span class="undo-state">1/10</span>
+              <input type="button" class="redo" value="&gt;" title="Redo">
+            </div>
+          </div>
+
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div id="editor">
+          </div>
+        </td>
+        <td id="tools-td">
+          <h1>Toolbox: <span class="modename"></span></h1>
+          <div id="tools">
+          </div>
+        </td>
+      </tr>
+    </table>
+    <div id="drop-area">
+      <div class="drop-border">
+        Drop images here
+      </div>
+    </div>
+  </body>
+</html>
