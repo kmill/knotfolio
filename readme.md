@@ -22,6 +22,10 @@ The `knotinfo` module is very large, which causes the JavaScript bundler to eat 
 ```
 NODE_OPTIONS=--max_old_space_size=4096 parcel knotfolio.html
 ```
+A "production" bundle can be created in the `dist` folder with
+```
+NODE_OPTIONS=--max_old_space_size=4096 parcel build knotfolio.html --public-url ./
+```
 
 The command `npm test` runs some tests.
 
