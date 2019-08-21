@@ -2,6 +2,8 @@
 
 This is a program for manipulating and identifying knots and links.  The primary input method for diagrams is a kind of paint program with a special paintbrush that helps with drawing crossings.  You can also drag-and-drop images into the program, say a picture of a pencil, chalk, or whiteboard drawing.
 
+[[https://github.com/kmill/knotfolio/blob/master/example.jpg|alt=Pencil drawing to a computer diagram]]
+
 ## Acknowledgments
 
 Thanks to ICERM for hosting the [Perspectives on Dehn Surgery](https://icerm.brown.edu/topical_workshops/tw19-3-pods/) summer school, where Stefan Mihajlović asked whether there existed any programs for importing knot diagrams from papers, and where Ken Baker and Nathan Dunfield were helpful while I worked on the first prototype.
