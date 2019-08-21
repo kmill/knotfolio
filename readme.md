@@ -1,6 +1,6 @@
 # KnotFolio
 
-This is a program for manipulating and identifying knots and links.  The primary input method for diagrams is a kind of paint program with a special paintbrush that helps with drawing crossings.  You can also drag-and-drop images into the program, say a picture of a pencil, chalk, or whiteboard drawing.
+This is a program for manipulating and identifying knots and links.  The primary input method for diagrams is a kind of paint program with a special paintbrush that helps with drawing crossings.  You can also drag-and-drop images into the program, say a picture of a pencil, chalk, or whiteboard drawing.  Try it out at https://kmill.github.io/knotfolio/
 
 ![Pencil drawing to a modifiable diagram](https://raw.githubusercontent.com/kmill/knotfolio/master/example.jpg)
 
