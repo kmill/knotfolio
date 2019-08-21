@@ -12,6 +12,21 @@ body {
     font-family: sans-serif;
 }
 
+#ref-links {
+    padding-bottom: 2px;
+    text-align: right;
+}
+#ref-links a {
+    text-decoration: none;
+    color: rgb(0, 0, 238);
+}
+#ref-links a:visited {
+    color: rgb(0, 0, 238);
+}
+#ref-links a:hover {
+    text-decoration: underline;
+}
+
 #undo {
     float:right;
     user-select: none;
