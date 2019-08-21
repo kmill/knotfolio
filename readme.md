@@ -4,9 +4,9 @@ This is a program for manipulating and identifying knots and links.  The primary
 
 ## Acknowledgments
 
-Thanks to ICERM for hosting the [https://icerm.brown.edu/topical_workshops/tw19-3-pods/](Perspectives on Dehn Surgery) summer school, where Stefan Mihajlović asked whether there existed any programs for importing knot diagrams from papers, and where Ken Baker and Nathan Dunfield were helpful while I worked on the first prototype.
+Thanks to ICERM for hosting the [Perspectives on Dehn Surgery](https://icerm.brown.edu/topical_workshops/tw19-3-pods/) summer school, where Stefan Mihajlović asked whether there existed any programs for importing knot diagrams from papers, and where Ken Baker and Nathan Dunfield were helpful while I worked on the first prototype.
 
-Some UI ideas came from [http://KLO-Software.net](KLO) and Josh Horowitz's [http://joshuahhh.com/projects/kit/](knot identification tool).
+Some UI ideas came from [KLO](http://KLO-Software.net) and Josh Horowitz's [knot identification tool](http://joshuahhh.com/projects/kit/).
 
 Knot identification uses the invaluable KnotInfo and LinkInfo databases:
 

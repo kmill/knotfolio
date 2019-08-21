@@ -1,23 +1,22 @@
 Things to compute:
 
-- Alexander polynomial
-- Jones polynomial
-- Writhe of diagram
-- Turaev genus of diagram
-- +-adequate, --adequate, and adequateness of diagram
-- HOMFLY polynomial
-- crossing number of diagram
-- Khovanov homology?
-- signature
+- [X] Alexander polynomial
+- [X] Jones polynomial
+- [X] Writhe of diagram
+- [X] crossing number of diagram
+- [ ] Turaev genus of diagram
+- [ ] +-adequate, --adequate, and adequateness of diagram
+- [ ] HOMFLY polynomial
+- [ ] Khovanov homology?
+- [ ] signature
 
 Manipulations:
 
-- cablings (like longitudinal pushoff)
-- Whitehead doubling
+- [ ] cablings (like longitudinal pushoff)
+- [ ] Whitehead doubling
 
 
 Maybe change?
 
 - in the image loader, make the image centered
-- when loading too big images, the way the canvas is used cuts off the image
 - for alexander polynomial, use bignums since gcd can have overflows
