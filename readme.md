@@ -31,6 +31,10 @@ NODE_OPTIONS=--max_old_space_size=4096 parcel build index.html --public-url ./
 
 The command `npm test` runs some tests.
 
+## Contact
+
+Comments, suggestions, bug reports, feedback, or favorite knots are welcome.  You can reach me at <kmill@berkeley.edu> or submit a GitHub issue.
+
 ## License
 
 KnotFolio, Copyright (C) 2019  Kyle Miller
