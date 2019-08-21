@@ -1,13 +1,15 @@
 // View for painting knots
 
 import {assert, clamp, hex_to_rgb} from "./util.mjs";
-import {MIN_LINE_LENGTH, MAX_PPREV_DIST, ERASE_RADIUS, PAINT_RADIUS,
-        PAINT_GAP, WIDTH, HEIGHT, ERROR_RADIUS, SPUR_LENGTH, MAX_GAP_LENGTH, palette} from "./constants.mjs";
-import {Point, line_points, segments_intersect, segment_contains, pseudo_angle} from "./geom2d.mjs";
+import {MIN_LINE_LENGTH, MAX_PPREV_DIST, ERASE_RADIUS, PAINT_RADIUS, DIAGRAM_LINE_WIDTH,
+        PAINT_GAP, WIDTH, HEIGHT, ERROR_RADIUS, SPUR_LENGTH, palette} from "./constants.mjs";
+import {Point, line_points, lines_intersect, segment_contains, segments_intersect, pseudo_angle} from "./geom2d.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {KnotImageImportView} from "./KnotImageImportView.mjs";
 import {KnotDiagramView} from "./KnotDiagramView.mjs";
 import Q from "./kq.mjs";
+
+const EPSILON = 1e-2;
 
 let global_painting_state = {
   mode: "pencil",
@@ -899,85 +901,108 @@ export class KnotRasterView {
         }
       }
     }
-    function match_up(points, color, max_gap) {
+    function match_up(points, color) {
       /* Looks for a perfect matching that optimizes a heuristic (sum
       of distances divided by (number of segments crossed - 1)).*/
-      let graph = [];
+
+      // graph[i][j] == score for path between i and j
+      let graph = new Array(points.length);
+      for (let i = 0; i < points.length; i++) {
+        let row = graph[i] = new Array(points.length);
+        row.fill(Infinity);
+      }
+      // a list of [i,j,score] for i<j, when score < Infinity
+      let all_edges = [];
       for (let i = 0; i < points.length; i++) {
         let p1 = points[i];
         for (let j = i + 1; j < points.length; j++) {
           let p2 = points[j];
+
           let d = Point.dist(p1, p2);
-          if (d <= max_gap) { // TODO optimize this with a better datastructure
-            let pcount = 0;
-            let state = -2;
-            for (let lp of line_points(p1, p2)) {
-              let c = tknot.buffer[width*lp.y+lp.x];
-              if (c !== state) {
-                if (c > 0) {
-                  pcount++;
-                }
-                state = c;
+
+          let pcount = 0;
+          let state = -2;
+          for (let lp of line_points(p1, p2)) {
+            let c = tknot.buffer[width*lp.y+lp.x];
+            if (c === 0) {
+              c = 0|tknot.buffer[width*lp.y+(lp.x+1)];
+            }
+            if (c === 0) {
+              c = 0|tknot.buffer[width*(lp.y+1)+lp.x];
+            }
+            if (c !== state) {
+              if (c > 0) {
+                pcount++;
               }
+              state = c;
             }
-            if (pcount > 1) {
-              // Then this is a non-backtracking line segment
-              var score = d / (pcount - 1);
-              graph.push([i, j, score, false]); // p1, p2, score, is_used
-            }
+          }
+          if (pcount > 1) {
+            // Then this is a non-backtracking line segment
+            let count = Math.min(2, pcount-1);
+            let score = (d - DIAGRAM_LINE_WIDTH*count) / count;
+            score = Math.max(0, score);
+            graph[i][j] = score;
+            graph[j][i] = score;
+            all_edges.push([i, j, score]);
           }
         }
       }
-      graph.sort((e1, e2) => e1[2] - e2[2]);
+      all_edges.sort((e1, e2) => e1[2] - e2[2]);
 
-      let best_score = Infinity;
-      let best_match = null;
+      // construct match greedily
 
-      let cur_match = [];
       let used_points = Array(points.length).fill(false);
-      function find(cur_score, num_used_points, edge_i) {
-        if (best_match !== null) {
-          // TODO This might cause problems, but I hope the heuristic
-          // of having the edges in ascending order of score will get
-          // good enough results.  Otherwise large diagrams can take a
-          // while...
+      let edges = [];
+      all_edges.forEach(edge => {
+        if (used_points[edge[0]] || used_points[edge[1]]) {
           return;
         }
-        if (cur_score >= best_score
-            || 2*(graph.length - edge_i) < points.length - num_used_points) {
-          return;
+        edges.push([edge[0], edge[1]]);
+        used_points[edge[0]] = true;
+        used_points[edge[1]] = true;
+      });
+
+      if (2 * edges.length < points.length) {
+        // Couldn't match everything up.  Return a too-short match
+        let err_points = [];
+        for (let i = 0; i < used_points.length; i++) {
+          if (!used_points[i]) {
+            err_points.push(points[i]);
+          }
         }
-        if (num_used_points === points.length) {
-          best_score = cur_score;
-          best_match = cur_match.slice();
-          return;
-        }
-        for (; edge_i < graph.length; edge_i++) {
-          let edge = graph[edge_i];
-          let p1 = edge[0],
-              p2 = edge[1];
-          if (!used_points[p1] && !used_points[p2]) {
-            used_points[p1] = true;
-            used_points[p2] = true;
-            cur_match.push(edge_i);
-            find(cur_score + edge[2], num_used_points + 2, edge_i + 1);
-            cur_match.pop();
-            used_points[p1] = false;
-            used_points[p2] = false;
+        return {err_points:err_points};
+      }
+
+      // look for pairs of edges where one of the other two pairings are better
+      let swaps = 0;
+      let keep_going = true;
+      while (keep_going) {
+        keep_going = false;
+        for (let i = 0; i < edges.length; i++) {
+          for (let j = i + 1; j < edges.length; j++) {
+            let [p1, p2] = edges[i],
+                [q1, q2] = edges[j];
+            let d1 = graph[p1][p2] + graph[q1][q2],
+                d2 = graph[p1][q1] + graph[p2][q2],
+                d3 = graph[p1][q2] + graph[q1][p2];
+            if (d2 < d1 && d2 <= d3) {
+              edges[i][1] = q1;
+              edges[j][0] = p2;
+              keep_going = true;
+              swaps++;
+            } else if (d3 < d1 && d3 <= d2) {
+              edges[i][1] = q2;
+              edges[j][1] = p2;
+              keep_going = true;
+              swaps++;
+            }
           }
         }
       }
+      console.log("swaps= " + swaps);
 
-      find(0, 0, 0);
-      if (best_match === null) {
-        return null;
-      }
-      let edges = [];
-      best_match.forEach(edge_j => {
-        let edge = graph[edge_j];
-        edges.push([points[edge[0]], points[edge[1]]]);
-      });
-      return edges;
+      return edges.map(edge => [points[edge[0]], points[edge[1]]]);
     }
 
     // Collect the matching now.
@@ -985,12 +1010,12 @@ export class KnotRasterView {
     let errors = [];
     endpoints.forEach((points, color) => {
       let match = null;
-      match = match_up(points, color, MAX_GAP_LENGTH);
-      if (match === null) {
+      match = match_up(points, color);
+      if (match.err_points) {
         found_error = true;
-        points.forEach(pt => knot.add_error(pt));
+        match.err_points.forEach(pt => knot.add_error(pt));
         errors.push("Couldn't find a way to match up endpoints in the component of color "
-                    + color + ".  This can be because some pair of endpoints are too far apart from each other.  Since it is hard to diagnose the problem algorithmically, all endpoints of the component have been marked.");
+                    + color + ".  The unmatched points have been marked.");
         return;
       }
       match.forEach(edge => {
@@ -1010,10 +1035,10 @@ export class KnotRasterView {
 
     function do_error_stuff() {
       console.log("error");
-/*      matches.forEach(match => {
-        knot.draw_line(null, match[0], match[1], match[2], -1);
-      });
-      errors.push("(All found matchings are drawn in on of the thinned version of the picture, to give some idea of what the program is seeing.  This can usually be edited and converted without undoing.)");*/
+      // matches.forEach(match => {
+      //   knot.draw_line(null, match[0], match[1], match[2], -1);
+      // });
+      // errors.push("(All found matchings are drawn in on of the thinned version of the picture, to give some idea of what the program is seeing.  This can usually be edited and converted without undoing.)");
       knot.the_error = errors;
       return knot;
     }
@@ -1104,19 +1129,19 @@ export class KnotRasterView {
           if (seg[i] === vi || seg[i+1] === vi) {
             return;
           }
-          if (segment_contains(verts[seg[i]], verts[seg[i+1]], v)) {
+          if (segment_contains(verts[seg[i]], verts[seg[i+1]], v, EPSILON)) {
             //console.log("Hit vertex " + vi);
             seg.splice(i+1, 0, vi);
             return;
           }
         }
       });
-      // Maybe (likely) seg intersects current edges.  Split both if this is the case
+      // Maybe seg intersects current edges.  Split both if this is the case
       var new_edges = [];
       edges.forEach((edge, edge_i) => {
         for (let i = 0; i + 1 < seg.length; i++) {
           let int_pt = segments_intersect(verts[edge[0]], verts[edge[1]],
-                                          verts[seg[i]], verts[seg[i+1]]);          
+                                          verts[seg[i]], verts[seg[i+1]], EPSILON);
           if (int_pt !== null) {
             //console.log("Segment " + seg +  " hit edge " + edge);
             // we know int_pt is a new point if it's not an endpoint
@@ -1128,12 +1153,14 @@ export class KnotRasterView {
               }
               return _int_pt_i;
             }
-            if (!Point.similar(int_pt, verts[edge[0]]) && !Point.similar(int_pt, verts[edge[1]])) {
+            if (!Point.similar(int_pt, verts[edge[0]], EPSILON)
+                && !Point.similar(int_pt, verts[edge[1]], EPSILON)) {
               new_edges.push([int_pt_i(), edge[1], edge[2], true]);
               edge[1] = int_pt_i();
               //console.log("Splitting edge");
             }
-            if (!Point.similar(int_pt, verts[seg[i]]) && !Point.similar(int_pt, verts[seg[i+1]])) {
+            if (!Point.similar(int_pt, verts[seg[i]], EPSILON)
+                && !Point.similar(int_pt, verts[seg[i+1]], EPSILON)) {
               seg.splice(i+1, 0, int_pt_i());
               //console.log("Splitting segment");
             }

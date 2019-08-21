@@ -74,7 +74,7 @@ export function pseudo_angle(p0, p1) {
   return (dy >= 0 ? 1 - p : 3 + p) / 4;
 }
 
-export function segment_contains(p1, p2, q, error=1e-10) {
+export function segment_contains_old(p1, p2, q, error=1e-10) {
   /* Checks if the line segment (p1,p2) contains the point q. Returns a boolean. */
   assert(!(Point.equal(p1, p2)));
   assert(q instanceof Point);
@@ -89,6 +89,10 @@ export function segment_contains(p1, p2, q, error=1e-10) {
   } else {
     return false;
   }
+}
+
+export function segment_contains(p1, p2, q, error=1e-10) {
+  return segment_distance(p1, p2, q) <= error;
 }
 
 export function segment_distance(p1, p2, q) {
@@ -114,7 +118,7 @@ export function segment_distance(p1, p2, q) {
   }
 }
 
-export function segments_intersect(p1, p2, q1, q2) {
+export function segments_intersect_old(p1, p2, q1, q2) {
   /* Checks if the line segments (p1,p2) and (q1,q2) intersect.
      Returns the intersection point if they do intersect. */
 
@@ -147,42 +151,37 @@ export function segments_intersect(p1, p2, q1, q2) {
   return null;
 }
 
-// export function segments_intersect(p1, p2, q1, q2) {
-//   /* Checks if the line segments (p1,p2) and (q1,q2) intersect.
-//      Returns the intersection point if they do intersect. */
-//   assert(p1 instanceof Point);
-//   assert(p2 instanceof Point);
-//   assert(q1 instanceof Point);
-//   assert(q2 instanceof Point);
+export function lines_intersect(p1, p2, q1, q2) {
+  /* Checks if the lines given by the segments (p1,p2) and (q1,q2) intersect.
+     Returns the intersection point if they do intersect. */
+  assert(p1 instanceof Point);
+  assert(p2 instanceof Point);
+  assert(q1 instanceof Point);
+  assert(q2 instanceof Point);
 
-//   function pline(a, b, p) {
-//     return ((a.x-p.x)*(a.x-b.x)+(a.y-p.y)*(a.y-b.y)) / ((a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y));
-//   }
+  let a = p1, b = p2,
+      c = q1, d = q2;
 
-//   let a = p1, b = p2,
-//       c = q1, d = q2;
+  let det = (a.x-b.x)*(c.y-d.y) - (a.y-b.y)*(c.x-d.x);
+  if (det === 0) {
+    return null;
+  }
+  let d1 = a.x*b.y - a.y*b.x,
+      d2 = c.x*d.y - c.y*d.x;
+  let pt = new Point((d1*(c.x-d.x) - d2*(a.x-b.x)) / det,
+                     (d1*(c.y-d.y) - d2*(a.y-b.y)) / det);
 
-//   let det = (a.x-b.x)*(c.y-d.y) - (a.y-b.y)*(c.x-d.x);
-//   if (det === 0) {
-//     return null;
-//   }
-//   console.log('det='+det);
+  return pt;
+}
 
-//   let d1 = a.x*b.y - a.y*b.x,
-//       d2 = c.x*d.y - c.y*d.x;
-//   let pt = new Point((d1*(c.x-d.x) - d2*(a.x-b.x)) / det,
-//                      (d1*(c.y-d.y) - d2*(a.y-b.y)) / det);
-
-//   let t1 = pline(p1, p2, pt),
-//       t2 = pline(q1, q2, pt);
-//   console.log("t=" + toString([t1, t2]));
-//   console.log("pt=" + pt);
-//   if (0 <= t1 && t1 <= 1 && 0 <= t2 && t2 <= 1) {
-//     return pt;
-//   } else {
-//     return null;
-//   }
-// }
+export function segments_intersect(p1, p2, q1, q2, epsilon=1e-10) {
+  let pt = lines_intersect(p1, p2, q1, q2);
+  if (!pt || segment_distance(p1, p2, pt) > epsilon || segment_distance(q1, q2, pt) > epsilon) {
+    return null;
+  } else {
+    return pt;
+  }
+}
 
 export function point_along(p1, p2, t) {
   /* Given a line parameterized so that t=0 is p1 and t=1 is p2,
