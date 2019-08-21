@@ -5,7 +5,7 @@
   "main": "src/main.mjs",
   "scripts": {
     "test": "sh run_tests.sh",
-    "start": "NODE_OPTIONS=--max_old_space_size=4096 parcel knotfolio.html"
+    "start": "NODE_OPTIONS=--max_old_space_size=4096 parcel index.html"
   },
   "author": "Kyle Miller",
   "license": "GPL-2.0-or-later",
