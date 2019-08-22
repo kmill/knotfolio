@@ -2,7 +2,7 @@
 
 import {assert, remove_value} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
-import {PD} from "./pd.mjs";
+import {PD, X, Xp, Xm} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
@@ -69,15 +69,33 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
 });
 
 define_invariant("jones_poly", async function (mt, diagram) {
-  /* Computes the Jones polynomial from a KnotGraph. Returns a
-     polynomial in T=t^2, or null for the empty diagram. */
-  assert(diagram instanceof KnotGraph);
+  /* Computes the Jones polynomial from a KnotGraph (or an oriented
+     PD). Returns a polynomial in T=t^2, or null for the empty diagram. */
+
+  let wr;
+  if (diagram instanceof PD) {
+    wr = 0;
+    diagram.forEach(entity => {
+      if (entity.length === 4) {
+        if (entity.constructor === Xp) {
+          wr++;
+        } else if (entity.constructor === Xm) {
+          wr--;
+        } else {
+          throw new TypeError;
+        }
+      }
+    });
+  } else {
+    assert(diagram instanceof KnotGraph);
+    wr = diagram.writhe();
+  }
 
   let kb = await get_invariant('kauffman_bracket', diagram);
   if (kb === null) {
     return null;
   }
-  let wr = diagram.writhe();
+
   let normalized_kb = kb.simple_mul(Math.pow(-1, wr), -3*wr);
   // The following polynomial is in T=t^2.
   let jp = new Laurent();
