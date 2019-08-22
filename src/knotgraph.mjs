@@ -504,17 +504,16 @@ export class KnotGraph {
   }
 
   turaev() {
-    /* Returns {genus:g, adequateness:k} where g is the Turaev genus
-       of the diagram and k=2 if the diagram is adequate, k=1 if it is
-       either plus-adequate or minus-adequate, or k=0 if it is
-       neither. */
+    /* Returns {genus:g, plus:p, minus:m} where g is the Turaev genus
+       of the diagram and p and m are whether the diagram is
+       plus-adequate and minus-adequate, respectively. */
 
     let seen_darts = new Set();
 
     let b_0 = 0;
     let n_faces = 0;
-    let plus = 1, // still plus-adequate
-        minus = 1; // still minus-adequate
+    let plus = true, // still plus-adequate
+        minus = true; // still minus-adequate
     for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
       if (!seen_darts.has(edge_i + 1)) {
         b_0++;
@@ -532,9 +531,9 @@ export class KnotGraph {
           do {
             if (face_fringe.has(d)) {
               if (is_black) {
-                plus = 0;
+                plus = false;
               } else {
-                minus = 0;
+                minus = false;
               }
             }
 
@@ -572,7 +571,8 @@ export class KnotGraph {
       }
     }
     return {genus: b_0 + (this.crossing_number() - n_faces)/2,
-            adequateness: plus + minus};
+            plus: plus,
+            minus: minus};
   }
 
   get_pd(oriented=false) {

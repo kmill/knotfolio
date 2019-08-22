@@ -388,10 +388,12 @@ export class KnotDiagramView {
       }
 
       console.log(turaev.adequateness);
-      if (turaev.adequateness === 1) {
-        props.push("semi-adequate");
-      } else if (turaev.adequateness === 2) {
+      if (turaev.plus && turaev.minus) {
         props.push("adequate");
+      } else if (turaev.plus) {
+        props.push("plus-adequate");
+      } else if (turaev.minus) {
+        props.push("minus-adequate");
       }
 
       $table.append(Q.create("tr",
