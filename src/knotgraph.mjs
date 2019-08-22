@@ -123,31 +123,23 @@ export class KnotGraph {
   }
 
   is_alternating() {
+    /* Returns whether this is an alternating diagram.  Assumes the diagram is oriented. */
     let seen_edges = [];
-    let to_see = [];
-    for (let i = 0; i < this.edges.length; i++) {
-      if (!seen_edges[i]) {
-        to_see.push(i);
-        while (to_see.length) {
-          let eid = to_see.pop();
-          if (seen_edges[eid]) {
-            continue;
-          }
-          let sign = null;
-          let circ = this.dart_circuit(eid + 1);
-          for (let di = 0; di < circ.length; di++) {
-            let dart = circ[di];
-            seen_edges[Math.abs(dart) - 1] = true;
-            let vid = this.dart_start(dart);
-            let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
-            if (this.adjs[vid].length === 4) {
-              this.adjs[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
-              if (sign === this_sign) {
-                // Not alternating
-                return false;
-              }
-              sign = this_sign;
+    for (let eid = 0; eid < this.edges.length; eid++) {
+      if (!seen_edges[eid]) {
+        let sign = null;
+        let circ = this.dart_circuit(eid + 1);
+        for (let di = 0; di < circ.length; di++) {
+          let dart = circ[di];
+          seen_edges[Math.abs(dart) - 1] = true;
+          let vid = this.dart_start(dart);
+          let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
+          if (this.adjs[vid].length === 4) {
+            if (sign === this_sign) {
+              // Not alternating
+              return false;
             }
+            sign = this_sign;
           }
         }
       }
@@ -509,6 +501,78 @@ export class KnotGraph {
       }
     }
     return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
+  }
+
+  turaev() {
+    /* Returns {genus:g, adequateness:k} where g is the Turaev genus
+       of the diagram and k=2 if the diagram is adequate, k=1 if it is
+       either plus-adequate or minus-adequate, or k=0 if it is
+       neither. */
+
+    let seen_darts = new Set();
+
+    let b_0 = 0;
+    let n_faces = 0;
+    let plus = 1, // still plus-adequate
+        minus = 1; // still minus-adequate
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (!seen_darts.has(edge_i + 1)) {
+        b_0++;
+
+        let to_see = [[edge_i + 1, false]]; // [[dart, is_black], ...]
+        while (to_see.length > 0) {
+          let [dart, is_black] = to_see.pop();
+          if (seen_darts.has(dart)) {
+            continue;
+          }
+          n_faces++;
+          // walk the Turaev face corresponding to the dart
+          let face_fringe = new Set();
+          let d = dart;
+          do {
+            if (face_fringe.has(d)) {
+              if (is_black) {
+                plus = 0;
+              } else {
+                minus = 0;
+              }
+            }
+
+            {
+              // Add adjacent darts to to_see, using checkerboard coloring
+              let color = is_black;
+              let adj_d = d;
+              do {
+                color = !color;
+                adj_d = this.next_dart(adj_d);
+                to_see.push([adj_d, color]);
+              } while (d !== adj_d);
+            }
+            seen_darts.add(d);
+            d = this.opp_dart(d);
+            let adj = this.adjs[this.dart_start(d)];
+            if (adj.length === 2) {
+              d = this.next_dart(d);
+            } else {
+              if ((adj.indexOf(d) % 2 === 0) === is_black) {
+                d = this.next_dart(d);
+              } else {
+                d = this.prev_dart(d);
+              }
+
+              adj.forEach(adj_d => {
+                if (d !== adj_d) {
+                  face_fringe.add(adj_d);
+                  face_fringe.add(this.opp_dart(adj_d));
+                }
+              });
+            }
+          } while (d !== dart);
+        }
+      }
+    }
+    return {genus: b_0 + (this.crossing_number() - n_faces)/2,
+            adequateness: plus + minus};
   }
 
   get_pd(oriented=false) {

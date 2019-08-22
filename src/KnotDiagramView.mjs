@@ -376,9 +376,22 @@ export class KnotDiagramView {
                              Q.create("th", "Can. genus:"),
                              Q.create("td", ''+this.diagram.genus())));
 
+      let turaev = this.diagram.turaev();
+      $table.append(Q.create("tr",
+                             Q.create("th", "Turaev genus:"),
+                             Q.create("td", ''+turaev.genus)));
+
+
       let props = [];
       if (diagram.is_alternating()) {
         props.push("alternating");
+      }
+
+      console.log(turaev.adequateness);
+      if (turaev.adequateness === 1) {
+        props.push("semi-adequate");
+      } else if (turaev.adequateness === 2) {
+        props.push("adequate");
       }
 
       $table.append(Q.create("tr",
