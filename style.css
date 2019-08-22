@@ -119,6 +119,19 @@ body {
 canvas {
 }
 
+table.diag-props {
+    margin-top: 1em;
+    border-width: 0px;
+    border-collapse: collapse;
+}
+table.diag-props th {
+    font-weight: normal;
+    padding-right: 0.5em;
+    text-align: left;
+}
+table.diag-props td {
+}
+
 #diag-info table.linking-matrix {
     border: 1px solid #ccc;
 }

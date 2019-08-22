@@ -121,6 +121,39 @@ export class KnotGraph {
       }
     }
   }
+
+  is_alternating() {
+    let seen_edges = [];
+    let to_see = [];
+    for (let i = 0; i < this.edges.length; i++) {
+      if (!seen_edges[i]) {
+        to_see.push(i);
+        while (to_see.length) {
+          let eid = to_see.pop();
+          if (seen_edges[eid]) {
+            continue;
+          }
+          let sign = null;
+          let circ = this.dart_circuit(eid + 1);
+          for (let di = 0; di < circ.length; di++) {
+            let dart = circ[di];
+            seen_edges[Math.abs(dart) - 1] = true;
+            let vid = this.dart_start(dart);
+            let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
+            if (this.adjs[vid].length === 4) {
+              this.adjs[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
+              if (sign === this_sign) {
+                // Not alternating
+                return false;
+              }
+              sign = this_sign;
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
   
   auto_color(max_colors) {
     /* Assigns colors to the components in an arbitrary order */
@@ -395,7 +428,10 @@ export class KnotGraph {
       m2.set(c1, (m2.get(c1)||0) + delta);
     }
     this.adjs.forEach((a, vi) => {
-      if (a.length === 4) {
+      if (a.length === 2) {
+        let c = this.dart_edge(a[0])[2];
+        ensure_component(c);
+      } else if (a.length === 4) {
         // recall: a[0] is dart for undercrossing
         //  a[2] \ / a[1]
         //        /
@@ -413,6 +449,66 @@ export class KnotGraph {
       }
     });
     return matrix;
+  }
+
+  num_components() {
+    // Assumes edges are properly oriented
+    let seen_darts = new Set();
+    let n = 0;
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (seen_darts.has(edge_i)) {
+        continue;
+      }
+      n++;
+      this.dart_circuit(edge_i + 1).forEach(dart => {
+        seen_darts.add(dart);
+      });
+    }
+    return n;
+  }
+
+  genus() {
+    /* The canonical Seifert genus of this particular diagram. For
+       split diagrams, it is the sum of the genera of each component. */
+
+    let seen_darts = new Set();
+
+    let component_faces = (start_dart) => {
+      let nfaces = 0;
+      let to_see = [start_dart];
+      while (to_see.length > 0) {
+        let dart = to_see.pop();
+        if (seen_darts.has(dart)) {
+          continue;
+        }
+        nfaces++;
+        // walk the Seifert face corresponding to the dart
+        let d = dart;
+        do {
+          to_see.push(...this.adjs[this.dart_start(d)]);
+          seen_darts.add(d);
+          d = this.opp_dart(d);
+          seen_darts.add(d);
+          let adj = this.adjs[this.dart_start(d)];
+          if (this.dart_oriented(d) === this.dart_oriented(this.next_dart(d))) {
+            d = this.prev_dart(d);
+          } else {
+            d = this.next_dart(d);
+          }
+        } while (d !== dart);
+      }
+      return nfaces;
+    };
+
+    let b_0 = 0;
+    let nfaces = 0;
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (!seen_darts.has(edge_i + 1)) {
+        b_0++;
+        nfaces += component_faces(edge_i + 1);
+      }
+    }
+    return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
   }
 
   get_pd(oriented=false) {

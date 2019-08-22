@@ -356,12 +356,34 @@ export class KnotDiagramView {
 
     let $idiv = Q.create("div").prop("id", "diag-info").appendTo($div);
     {
-      // Number of crossings
-      $idiv.append(Q.create("p")
-                  .append("Crossing number: ")
-                  .append(''+this.diagram.crossing_number()));
+      let $table = Q.create("table", {className:"diag-props"});
+      $idiv.append($table);
 
-      Q.create("p").append("Writhe: " + this.diagram.writhe()).appendTo($idiv);
+      $table.append(Q.create("tr",
+                             Q.create("th", "Crossings:"),
+                             Q.create("td", ''+this.diagram.crossing_number())));
+
+      $table.append(Q.create("tr",
+                             Q.create("th", "Components:"),
+                             Q.create("td", ''+this.diagram.num_components())));
+
+
+      $table.append(Q.create("tr",
+                             Q.create("th", "Writhe:"),
+                             Q.create("td", ''+this.diagram.writhe())));
+
+      $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
+                             Q.create("th", "Can. genus:"),
+                             Q.create("td", ''+this.diagram.genus())));
+
+      let props = [];
+      if (diagram.is_alternating()) {
+        props.push("alternating");
+      }
+
+      $table.append(Q.create("tr",
+                             Q.create("th", "Properties:"),
+                             Q.create("td", props.length > 0 ? props.join(", ") : Q.create("em", "none"))));
 
       let $lm = Q.create("p").append("Linking matrix: ").appendTo($idiv);
       $lm.append(Q.create("br"));
