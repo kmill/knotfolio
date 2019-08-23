@@ -372,6 +372,11 @@ export class KnotDiagramView {
                              Q.create("th", "Writhe:"),
                              Q.create("td", ''+this.diagram.writhe())));
 
+      $table.append(Q.create("tr",
+                             Q.create("th", "Bridges:"),
+                             Q.create("td", ''+this.diagram.bridge_number())));
+
+
       $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
                              Q.create("th", "Can. genus:"),
                              Q.create("td", ''+this.diagram.genus())));
@@ -387,7 +392,6 @@ export class KnotDiagramView {
         props.push("alternating");
       }
 
-      console.log(turaev.adequateness);
       if (turaev.plus && turaev.minus) {
         props.push("adequate");
       } else if (turaev.plus) {

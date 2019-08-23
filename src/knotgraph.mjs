@@ -146,6 +146,49 @@ export class KnotGraph {
     }
     return true;
   }
+
+  bridge_number() {
+    /* Returns the bridge number (in the classical sense: the number
+       of arcs that are everywhere-over) of the diagram.  Assumes the
+       diagram is oriented. Split unknotted loops have bridge number 1. */
+    let seen_edges = [];
+    let bridges = 0;
+    for (let eid = 0; eid < this.edges.length; eid++) {
+      if (!seen_edges[eid]) {
+        let dart = eid + 1;
+        let circ = this.dart_circuit(eid + 1);
+        circ.forEach(d => {
+          seen_edges[Math.abs(d) - 1] = true;
+        });
+        if (circ.every(d => this.dart_order(d) === 2)) {
+          bridges++;
+        } else {
+          circ = circ.filter(d => this.dart_order(d) === 4);
+          let j = 0;
+          while (this.dart_is_over(circ[j])) {
+            j++;
+          }
+          for (let i = 0; i < circ.length;) {
+            let k = (i + j) % circ.length;
+            assert(!this.dart_is_over(circ[k]));
+            let cr = 0;
+            while(true) {
+              i++;
+              k = (i + j) % circ.length;
+              if (!this.dart_is_over(circ[k])) {
+                break;
+              }
+              cr++;
+            }
+            if (cr > 0) {
+              bridges++;
+            }
+          }
+        }
+      }
+    }
+    return bridges;
+  }
   
   auto_color(max_colors) {
     /* Assigns colors to the components in an arbitrary order */
@@ -459,6 +502,23 @@ export class KnotGraph {
     return n;
   }
 
+  seifert_circuit(dart) {
+    /* Gives the Seifert circuit through the dart. */
+    let circuit = [];
+    let d = dart;
+    do {
+      circuit.push(d);
+      d = this.opp_dart(d);
+      // the following works whether adj.length is 2 or 4
+      if (this.dart_oriented(d) === this.dart_oriented(this.next_dart(d))) {
+        d = this.prev_dart(d);
+      } else {
+        d = this.next_dart(d);
+      }
+    } while (d !== dart);
+    return circuit;
+  }
+
   genus() {
     /* The canonical Seifert genus of this particular diagram. For
        split diagrams, it is the sum of the genera of each component. */
@@ -474,20 +534,11 @@ export class KnotGraph {
           continue;
         }
         nfaces++;
-        // walk the Seifert face corresponding to the dart
-        let d = dart;
-        do {
+        this.seifert_circuit(dart).forEach(d => {
           to_see.push(...this.adjs[this.dart_start(d)]);
           seen_darts.add(d);
-          d = this.opp_dart(d);
-          seen_darts.add(d);
-          let adj = this.adjs[this.dart_start(d)];
-          if (this.dart_oriented(d) === this.dart_oriented(this.next_dart(d))) {
-            d = this.prev_dart(d);
-          } else {
-            d = this.next_dart(d);
-          }
-        } while (d !== dart);
+          seen_darts.add(this.opp_dart(d));
+        });
       }
       return nfaces;
     };
