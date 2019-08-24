@@ -397,6 +397,11 @@ export class Laurent extends SimpleType {
   static negate(a) {
     return a.simple_mul(-1, 0);
   }
+  static incl(v) {
+    /* The natural inclusion of the base field. */
+    assert(typeof v === "number");
+    return Laurent.make(LTerm.make(v, 0));
+  }
 }
 
 Laurent.zero = Laurent.make();

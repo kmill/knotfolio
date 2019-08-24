@@ -1,4 +1,6 @@
 import {assert} from "./util.mjs";
+import {Laurent, LTerm} from "./laurent.mjs";
+import {eigenvalues} from "./eigenvalues.mjs";
 
 export function det(NumberSystem, matrix) {
   /* Computes the determinant of the given matrix, with entries in the
@@ -28,4 +30,25 @@ export function det(NumberSystem, matrix) {
     val = NumberSystem.add(val, NumberSystem.mul(det(NumberSystem, sub_matrix), c));
   }
   return val;
+}
+
+export function signature(matrix, error=1e-14) {
+  // The matrix is assumed to be an n x n integer matrix.
+
+  if (matrix.length === 0) {
+    return 0;
+  }
+  assert(matrix.length === matrix[0].length);
+
+  let evals = eigenvalues(matrix);
+
+  let sig = 0;
+  eigenvalues(matrix).forEach(lam => {
+    if (lam - error > 0) {
+      sig++;
+    } else if (lam + error < 0) {
+      sig--;
+    }
+  });
+  return sig;
 }

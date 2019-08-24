@@ -6,6 +6,7 @@ import {KnotRasterView} from "./KnotRasterView.mjs";
 import {get_invariant} from "./invariants.mjs";
 import {Laurent} from "./laurent.mjs";
 import Q from "./kq.mjs";
+import {signature} from "./matrix.mjs";
 
 let global_tool_state = {
   tool: "crossing-change"
@@ -427,6 +428,7 @@ export class KnotDiagramView {
 
     let $sf = Q.create("p", {title:"There is one Seifert linking matrix per connected component of the diagram."},
                        "Seifert form:", Q.create("br")).appendTo($idiv);
+    let the_signature = 0;
     diagram.seifert_form().forEach(matrix => {
       let $table = Q.create("table", {className:"seifert-matrix"});
       matrix.forEach(row => {
@@ -436,6 +438,16 @@ export class KnotDiagramView {
         });
       });
       $sf.append($table);
+
+      // compute A + A^T
+      let two_cover = matrix.map(row => row.slice());
+      for (let i = 0; i < matrix.length; i++) {
+        for (let j = 0; j < matrix.length; j++) {
+          two_cover[i][j] += matrix[j][i];
+        }
+      }
+
+      the_signature += signature(two_cover);
     });
 
     let $pd = Q.create("textarea")
@@ -550,6 +562,12 @@ export class KnotDiagramView {
         }
         $det.append('' + Math.abs(det));
       })();
+
+      let $sig;
+      $table.append(Q.create("tr",
+                             Q.create("th", "Signature:"),
+                             $sig = Q.create("td", ''+the_signature+" ",
+                                             Q.create("em", "(warning: estimated)"))));
 
 
       let $jones;
