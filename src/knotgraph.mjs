@@ -165,8 +165,13 @@ export class KnotGraph {
         } else {
           circ = circ.filter(d => this.dart_order(d) === 4);
           let j = 0;
-          while (this.dart_is_over(circ[j])) {
+          while (j < circ.length && this.dart_is_over(circ[j])) {
             j++;
+          }
+          if (j === circ.length) {
+            // this was an unknot on top of the diagram
+            bridges++;
+            continue;
           }
           for (let i = 0; i < circ.length;) {
             let k = (i + j) % circ.length;
