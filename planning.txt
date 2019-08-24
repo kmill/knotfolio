@@ -8,8 +8,9 @@ Things to compute:
 - [X] +-adequate, --adequate, and adequateness of diagram
 - [ ] HOMFLY polynomial
 - [ ] Khovanov homology?
-- [ ] signature
+- [X] signature
 - [ ] DT code for knots
+- [ ] is there a face with a braid axis?
 
 Manipulations:
 

@@ -1,4 +1,4 @@
-import {assert, remove_value, toString} from "./util.mjs";
+import {assert, remove_value, toString, compare} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
 import {segments_intersect} from "./geom2d.mjs";
 import {PD,P,X,Xp,Xm} from "./pd.mjs";
@@ -990,5 +990,60 @@ export class KnotGraph {
       }
     });
     return pd;
+  }
+
+  get_dt() {
+    /* If this is not a knot, return null.  Otherwise, return a
+       Dowker-Thistlethwaite code for the knot. */
+    if (this.num_components() !== 1) {
+      return null;
+    }
+    let circuit = this.dart_circuit(1).filter(d => this.dart_order(d) === 4);
+    if (circuit.length === 0) {
+      return [];
+    }
+    let n = circuit.length;
+
+    let code_from = (k) => {
+      let dart_crossing = new Map();
+      circuit.forEach((d, i) => {
+        dart_crossing.set(d, (i+n-k)%n);
+      });
+      let get_crossing = (dart) => {
+        let i = dart_crossing.get(this.next_dart(dart));
+        if (i === void 0) {
+          i = dart_crossing.get(this.prev_dart(dart));
+        }
+        return i;
+      };
+      let code = [];
+      for (let i = 0; i < circuit.length; i += 2) {
+        let j = get_crossing(circuit[(i+k)%n]);
+        if (this.dart_is_over(circuit[(i+k)%n])) {
+          code.push(-j-1);
+        } else {
+          code.push(j+1);
+        }
+      }
+      if (code[0] < 0) {
+        for (let i = 0; i < code.length; i++) {
+          code[i] = -code[i];
+        }
+      }
+      return code;
+    };
+
+    let codes = [];
+    for (let k = 0; k < circuit.length; k++) {
+      codes.push(code_from(k));
+    }
+    circuit = this.dart_circuit(-1).filter(d => this.dart_order(d) === 4);
+    for (let k = 0; k < circuit.length; k++) {
+      codes.push(code_from(k));
+    }
+
+    codes.sort(compare);
+
+    return codes[0];
   }
 }

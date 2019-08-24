@@ -1,4 +1,4 @@
-import {assert, hex_to_rgb} from "./util.mjs";
+import {assert, hex_to_rgb, toString} from "./util.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {Point, segment_distance, point_along} from "./geom2d.mjs";
 import {CROSSING_CHANGE_RADIUS, DIAGRAM_LINE_WIDTH, CROSSING_GAP, palette} from "./constants.mjs";
@@ -493,6 +493,12 @@ export class KnotDiagramView {
                  .append($pdtypes, Q.create("br"), $pd));
     pd_change(default_pd_type);
 
+    let dt = diagram.get_dt();
+    if (dt) {
+      $idiv.append(Q.create("p")
+                   .append("DT: " + toString(dt)));
+    }
+
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
         if (poly) {
@@ -564,7 +570,7 @@ export class KnotDiagramView {
       })();
 
       let $sig;
-      $table.append(Q.create("tr",
+      $table.append(Q.create("tr", {title: "The program currently uses floating point arithmetic to compute eigenvalues, hence the warning."},
                              Q.create("th", "Signature:"),
                              $sig = Q.create("td", ''+the_signature+" ",
                                              Q.create("em", "(warning: estimated)"))));
