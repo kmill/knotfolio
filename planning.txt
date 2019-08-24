@@ -4,11 +4,12 @@ Things to compute:
 - [X] Jones polynomial
 - [X] Writhe of diagram
 - [X] crossing number of diagram
-- [ ] Turaev genus of diagram
-- [ ] +-adequate, --adequate, and adequateness of diagram
+- [X] Turaev genus of diagram
+- [X] +-adequate, --adequate, and adequateness of diagram
 - [ ] HOMFLY polynomial
 - [ ] Khovanov homology?
 - [ ] signature
+- [ ] DT code for knots
 
 Manipulations:
 

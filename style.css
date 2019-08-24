@@ -120,26 +120,43 @@ canvas {
 }
 
 table.diag-props {
-    margin-top: 1em;
+    margin-top: 0.5em;
     border-width: 0px;
-    border-collapse: collapse;
+    border-collapse: separate;
 }
 table.diag-props th {
     font-weight: normal;
+    padding: 0;
     padding-right: 0.5em;
     text-align: left;
+    vertical-align: top;
 }
 table.diag-props td {
+    vertical-align: top;
 }
 
 #diag-info table.linking-matrix {
     border: 1px solid #ccc;
+    margin-left: 0.5em;
 }
 
 #diag-info table.linking-matrix td {
     padding: 2px 3px;
     text-align: center;
 }
+
+
+#diag-info table.seifert-matrix {
+    border: 1px solid #ccc;
+    display: inline-block;
+    margin-left: 0.5em;
+}
+
+#diag-info table.seifert-matrix td {
+    padding: 2px 3px;
+    text-align: center;
+}
+
 
 #tools table.alexander-matrix {
     border: 1px solid #ccc;

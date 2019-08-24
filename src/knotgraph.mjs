@@ -1,4 +1,4 @@
-import {assert, remove_value} from "./util.mjs";
+import {assert, remove_value, toString} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
 import {segments_intersect} from "./geom2d.mjs";
 import {PD,P,X,Xp,Xm} from "./pd.mjs";
@@ -552,6 +552,302 @@ export class KnotGraph {
       }
     }
     return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
+  }
+
+  seifert_form() {
+    /* Gives the Seifert linking form of the diagram with respect to
+       some basis.  This is represented as [matrix, matrix, ...] with
+       one matrix per connected component of the diagram, where
+       together these form a block diagonal matrix. It should be
+       understood that the full linking form has in additional c-1
+       extra 0's on the diagonal (where c is the number of diagram
+       components), since a Seifert surface should be connected. */
+
+    let seen_edges = new Array(this.edges.length); // contains corresp. circuit ids
+    seen_edges.fill(-1);
+    let next_circuit_id = 0;
+    function circuit_id(edge_id) {
+      if (seen_edges[edge_id] === -1) {
+        return (seen_edges[edge_id] = next_circuit_id++);
+      } else {
+        return seen_edges[edge_id];
+      }
+    }
+
+    let visit_component = (start_edge) => {
+
+      // the first part is constructing a Seifert surface for this component.
+      // the meaning of circuits and twists will be described after it is constructed
+
+      let to_see = [start_edge]; // [edge_id, ...]
+
+      let circuits = new Map();
+      let twists = [];
+
+      function twist_id(edge1, edge2, x) {
+        for (let i = 0; i < twists.length; i++) {
+          let tw = twists[i];
+          if (tw[1] === edge1 && tw[2] === edge2) {
+            assert(x === tw[3]);
+            return tw[0];
+          }
+        }
+        let id = twists.length;
+        twists.push([id, edge1, edge2, x]);
+        return id;
+      }
+
+      while (to_see.length > 0) {
+        let eid = to_see.pop();
+        if (seen_edges[eid] !== -1) {
+          continue;
+        }
+        let circ_id = circuit_id(eid);
+        let circuit = this.seifert_circuit(eid + 1);
+        circuit.forEach(d => {
+          assert(d > 0);
+          seen_edges[d - 1] = circ_id;
+        });
+        circuit = circuit.filter(d => this.dart_order(d) === 4);
+        let circuit_adj = [];
+        circuits.set(circ_id, circuit_adj);
+        circuit.forEach(d => {
+          let eid1 = d - 1;
+          let adj = this.adjs[this.dart_start(d)];
+          let i = adj.indexOf(d);
+          let eid2, x, front;
+          if (this.dart_oriented(this.next_dart(d))) {
+            eid2 = this.next_dart(d) - 1;
+            x = 1 - 2 * (i % 2);
+            front = false;
+          } else {
+            eid2 = this.prev_dart(d) - 1;
+            x = 2 * (i % 2) - 1;
+            front = true;
+          }
+          assert(eid2 >= 0);
+          to_see.push(eid2);
+          if (front) {
+            let tw = twist_id(eid1, eid2, x);
+            circuit_adj.push(tw+1);
+          } else {
+            let tw = twist_id(eid2, eid1, x);
+            circuit_adj.push(-tw-1);
+          }
+        });
+      }
+
+      // replace edge ids with the correct circuit ids
+      twists.forEach(twist => {
+        twist[1] = seen_edges[twist[1]];
+        twist[2] = seen_edges[twist[2]];
+      });
+
+      // Consider an oriented ribbon graph in upper half space that is
+      // sort-of-planar in the following way.  Each vertex is an
+      // oriented rectangular strip that is perpendicularly incident
+      // along the long side to the boundary plane, and along this
+      // side, edge strips meet it either in the front or the back
+      // with respect to its orientation.  Then, since this is a
+      // Seifert surface from Seifert's algorithm, edges have a half
+      // twist somewhere along their length; this means edges meet one
+      // vertex in the front and one vertex in the back, to preserve
+      // orientation.
+      //
+      // We represent this as follows.
+      //
+      // The vertices are stored in
+      //    circuits : circ_id => [dart, ...]
+      // where a dart is eid + 1 or -eid - 1 depending on whether the
+      // edge is incident to the front or the back of the vertex.  The
+      // orientation of the vertex is given by the convention in the
+      // following picture:
+      //
+      //  back   front
+      //       ^
+      //       |-- d4
+      //  d3 --|
+      //  d2 --|
+      //       |-- d1
+      //       |-- d0
+      //       |
+      //    vertex
+      //
+      // Edges are stored in
+      //    twists : list of [eid, circ_id1, circ_id2, x:{-1,1}]
+      // where the twist is in front of circ_id1 and behind circ_id2,
+      // and where x is the sign of the twist.
+      //
+      // What hasn't been explained is exactly why this is the result
+      // of Seifert's algorithm.  Here is what to imagine: we have
+      // "cut" each Seifert circuit by isotoping a small interval of
+      // the Seifert disk away from the plane of the diagram.  That
+      // is, each circuit represents an oriented rectangle with one
+      // edge embedded in the plane of the diagram, and each ribbon is
+      // attached somewhere along the length of this edge.
+      //
+      // (This is a reason why Seifert graphs are planar as abstract
+      // graphs.)
+
+
+      // Now we compute a basis for H_1, represented by the edges in cross_edges
+
+      if (0) {
+        circuits = new Map;
+        circuits.set(0, [-1, -2]);
+        circuits.set(1, [2, -3, 1, -4]);
+        circuits.set(2, [4, 3]);
+        twists = [[0, 1, 0, -1], [1, 1, 0, -1], [2, 2, 1, 1], [3, 2, 1, 1]];
+      }
+
+      let tree = new Map; // circuit_id -> (dart_id | null).  null means root
+      tree.set(twists[0][1], null);
+      let to_visit = twists.slice();
+      let cross_edges = [];
+      while (to_visit.length > 0) {
+        let twist;
+        for (let i = 0; i < to_visit.length; i++) {
+          twist = to_visit[i];
+          if (tree.has(twist[1]) || tree.has(twist[2])) {
+            to_visit.splice(i, 1);
+            break;
+          }
+        }
+        assert(twist);
+        if (tree.has(twist[1]) && tree.has(twist[2])) {
+          cross_edges.push(twist);
+        } else if (tree.has(twist[1])) {
+          tree.set(twist[2], -twist[0]-1);
+        } else {
+          tree.set(twist[1], twist[0]+1);
+        }
+      }
+
+      // Next is to compute the cycles corresponding to the cross_edge
+      // representations, and then to convert this into a form that is
+      // convenient for computing the Seifert pairing.
+
+      function find_twist(id) {
+        for (let i = 0; i < twists.length; i++) {
+          if (twists[i][0] === id) {
+            return twists[i];
+          }
+        }
+        return assert(false);
+      }
+
+      function cycle(cross_edge) {
+        // path is [[same_orientation, edge], ...] for the cycle
+        let path = [[true, cross_edge]];
+        let cid;
+        cid = cross_edge[1];
+        while (tree.get(cid) !== null) {
+          let dart = tree.get(cid);
+          let twist = find_twist(Math.abs(dart) - 1);
+          path.unshift([dart < 0, twist]);
+          cid = twist[1 + (dart > 0)];
+        }
+        cid = cross_edge[2];
+        while (tree.get(cid) !== null) {
+          let dart = tree.get(cid);
+          let twist = find_twist(Math.abs(dart) - 1);
+          path.push([dart > 0, twist]);
+          cid = twist[1 + (dart > 0)];
+        }
+        // remove backtracking from the tree part
+        while (path[0][1][0] === path[path.length-1][1][0]) {
+          path.pop();
+          path.shift();
+        }
+        // now all edge ids are distinct
+        return path;
+      }
+
+      //cross_edges.forEach(ce => console.log(toString(cycle(ce))));
+      
+      function make_vector(cycle) {
+        // the cycle is as in the output of cycle()
+        let edges = []; // list of [eid, x, oriented]
+        let verts = []; // list of [vid, from_idx, front, to_idx, front]
+        for (let i = 0; i < cycle.length; i++) {
+          let [ori1, edge1] = cycle[i],
+              [ori2, edge2] = cycle[(i+1) % cycle.length];
+          edges.push([edge1[0], edge1[3], ori1]);
+
+          let vtx = edge1[1 + ori1];
+          let adj = circuits.get(vtx);
+          let dart1 = ori1 ? -edge1[0]-1 : edge1[0]+1,
+              dart2 = ori2 ? edge2[0]+1 : -edge2[0]-1;
+          let from = adj.indexOf(dart1),
+              to = adj.indexOf(dart2);
+          assert(from !== -1 && to !== -1);
+          verts.push([vtx, from, dart1 > 0, to, dart2 > 0]);
+        }
+        return {edges:edges, verts:verts};
+      }
+
+      //cross_edges.forEach(ce => console.log(make_vector(cycle(ce))));
+
+      function linking(vect1, vect2) {
+        // vect2 is pushed off
+        // count linking of vect2 over vect1
+        let link = 0;
+        vect1.edges.forEach(edge1 => {
+          let [eid, x, ori1] = edge1;
+          vect2.edges.forEach(edge2 => {
+            if (eid === edge2[0]) {
+              let ori2 = edge2[2];
+              if (x > 0) {
+                link += 2 * (ori1 === ori2) - 1;
+              }
+            }
+          });
+        });
+        vect1.verts.forEach(vert1 => {
+          let [vtx, from1, from1_front, to1, to1_front] = vert1;
+          vect2.verts.forEach(vert2 => {
+            if (vtx === vert2[0]) {
+              let [_, from2, from2_front, to2, to2_front] = vert2;
+
+              let ori1 = 1;
+              if (from1 > to1) {
+                ori1 = -1;
+                [from1, from1_front, to1, to1_front] = [to1, to1_front, from1, from1_front];
+              }
+              let ori2 = 1;
+              if (from2 > to2) {
+                ori2 = -1;
+                [from2, from2_front, to2, to2_front] = [to2, to2_front, from2, from2_front];
+              }
+
+              if (from1_front && (from2 < from1 && from1 <= to2)) {
+                link += ori1 * ori2;
+              }
+              if (to1_front && (from2 < to1 && to1 <= to2)) {
+                link -= ori1 * ori2;
+              }
+            }
+          });
+        });
+        return link;
+      }
+
+      let vecs = cross_edges.map(ce => make_vector(cycle(ce)));
+
+      let matrix = vecs.map(v1 => vecs.map(v2 => linking(v1, v2)));
+      console.log(toString(matrix));
+
+      return matrix;
+    };
+
+
+    let matrices = [];
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (this.dart_order(edge_i + 1) === 4 && seen_edges[edge_i] === -1) {
+        matrices.push(visit_component(edge_i));
+      }
+    }
+    return matrices;
   }
 
   turaev() {

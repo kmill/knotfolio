@@ -404,8 +404,7 @@ export class KnotDiagramView {
                              Q.create("th", "Properties:"),
                              Q.create("td", props.length > 0 ? props.join(", ") : Q.create("em", "none"))));
 
-      let $lm = Q.create("p").append("Linking matrix: ").appendTo($idiv);
-      $lm.append(Q.create("br"));
+      let $lm = Q.create("p", "Linking matrix:", Q.create("br")).appendTo($idiv);
       {
         let matrix = this.diagram.linking_matrix();
         let comps = Array.from(matrix.keys());
@@ -426,6 +425,18 @@ export class KnotDiagramView {
       }
     }
 
+    let $sf = Q.create("p", {title:"There is one Seifert linking matrix per connected component of the diagram."},
+                       "Seifert form:", Q.create("br")).appendTo($idiv);
+    diagram.seifert_form().forEach(matrix => {
+      let $table = Q.create("table", {className:"seifert-matrix"});
+      matrix.forEach(row => {
+        let $tr = Q.create("tr").appendTo($table);
+        row.forEach(c => {
+          $tr.append(Q.create("td", ''+c));
+        });
+      });
+      $sf.append($table);
+    });
 
     let $pd = Q.create("textarea")
         .attr("readonly", true)
@@ -465,9 +476,9 @@ export class KnotDiagramView {
       let name = this.elements['pd-type'].value;
       pd_change(name);
     });
-    $div.append(Q.create("p")
-                .append("PD: ")
-                .append($pdtypes, Q.create("br"), $pd));
+    $idiv.append(Q.create("p")
+                 .append("PD: ")
+                 .append($pdtypes, Q.create("br"), $pd));
     pd_change(default_pd_type);
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
@@ -485,13 +496,13 @@ export class KnotDiagramView {
     }
 
     var $kb_div;
-    $div.append(Q.create("p")
-                .append("Kauffman bracket:")
-                .append($kb_div = Q.create("div")));
+    $idiv.append(Q.create("p")
+                 .append("Kauffman bracket:")
+                 .append($kb_div = Q.create("div")));
     laurent_invariant(get_invariant("kauffman_bracket", this.diagram), $kb_div, "A");
 
-    $div.append(Q.create("h2").append("Identification"));
-    let $ident = Q.create("p").appendTo($div);
+    $idiv.append(Q.create("h2").append("Identification"));
+    let $ident = Q.create("p").appendTo($idiv);
     get_invariant('identify_link', this.diagram).then(
       names => {
         if (names.length === 0) {
@@ -519,85 +530,107 @@ export class KnotDiagramView {
       }
     );
 
-    $div.append(Q.create("h2").append("Invariants"));
+    $idiv.append(Q.create("h2").append("Invariants"));
 
-    let $jones;
-    $div.append(Q.create("p")
-                .append("Jones polynomial:")
-                .append($jones = Q.create("div")));
-    laurent_invariant(get_invariant('jones_poly', this.diagram), $jones, "t", 2);
+    {
+      let $table = Q.create("table", {className:"diag-props"});
+      $idiv.append($table);
 
-    if (0) {
-      let wp = get_invariant(this.diagram, 'wirtinger_presentation');
-      let gens = Q.create("div").append("Generators: ");
-      wp.gens.forEach((g, i) => {
-        if (i > 0) {
-          gens.append(", ");
+      let $det;
+      $table.append(Q.create("tr",
+                             Q.create("th", "Determinant:"),
+                             $det = Q.create("td")));
+
+      (async function () {
+        let poly = await get_invariant("alexander_poly", diagram, 0);
+        let coeffs = poly.coeffs();
+        let det = 0;
+        for (let i = 0; i < coeffs.length; i++) {
+          det += coeffs[i] * (2 * (i % 2) - 1);
         }
-        gens.append(showGen(g));
-      });
-      let rels = Q.create("div").append("Relations: ");
-      wp.rels.forEach((rel, i) => {
-        if (i > 0) {
-          rels.append(", ");
-        }
-        rels.append(showRel(rel));
-      });
-      $div.append(Q.create("p")
-                  .append("Wirtinger presentation:")
-                  .append(gens)
-                  .append(rels));
-      function showGen(g) {
-        let s = Q.create("span").append(g[0]);
-        s.append(Q.create("sub").append(g.slice(1)));
-        return s;
-      }
-      function showRel(rel) {
-        let s = Q.create("span");
-        for (let i = 0; i < rel.length; i += 2) {
-          s.append(showGen(rel[i]));
-          if (rel[i+1] !== 1) {
-            s.append(Q.create("sup").append(''+rel[i+1]));
+        $det.append('' + Math.abs(det));
+      })();
+
+
+      let $jones;
+      $idiv.append(Q.create("p")
+                   .append("Jones polynomial:")
+                   .append($jones = Q.create("div")));
+      laurent_invariant(get_invariant('jones_poly', this.diagram), $jones, "t", 2);
+
+      if (0) {
+        let wp = get_invariant(this.diagram, 'wirtinger_presentation');
+        let gens = Q.create("div").append("Generators: ");
+        wp.gens.forEach((g, i) => {
+          if (i > 0) {
+            gens.append(", ");
           }
-        }
-        return s;
-      }
-    }
-
-    let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($div);
-    (async function () {
-      try {
-        for (let n = 0; ; n++) {
-          let poly = await get_invariant("alexander_poly", diagram, n);
-          if (n >= 1 && poly.equal(Laurent.unit)) {
-            break;
-          }
-          $alex_polys.append(Q.create("br"));
-          $alex_polys.append("\u0394");
-          $alex_polys.append(Q.create("sup").append(''+n));
-          $alex_polys.append("(t) = ", poly.toDOM("t"));
-        }
-      } catch (x) {
-        $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));
-        throw x;
-      }
-    })();
-
-    let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($div);
-    $alex_mod.append(Q.create("br"));
-    (async function () {
-      let matrix = await get_invariant('alexander_module', diagram);
-      let $table = Q.create("table").addClass("alexander-matrix");
-      matrix.forEach(row => {
-        let $tr = Q.create("tr").appendTo($table);
-        row.forEach(entry => {
-          let $td = Q.create("td").appendTo($tr);
-          $td.append(entry.toDOM("t"));
+          gens.append(showGen(g));
         });
-      });
-      $alex_mod.append($table);
-      $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
-    })();
+        let rels = Q.create("div").append("Relations: ");
+        wp.rels.forEach((rel, i) => {
+          if (i > 0) {
+            rels.append(", ");
+          }
+          rels.append(showRel(rel));
+        });
+        $idiv.append(Q.create("p")
+                     .append("Wirtinger presentation:")
+                     .append(gens)
+                     .append(rels));
+        function showGen(g) {
+          let s = Q.create("span").append(g[0]);
+          s.append(Q.create("sub").append(g.slice(1)));
+          return s;
+        }
+        function showRel(rel) {
+          let s = Q.create("span");
+          for (let i = 0; i < rel.length; i += 2) {
+            s.append(showGen(rel[i]));
+            if (rel[i+1] !== 1) {
+              s.append(Q.create("sup").append(''+rel[i+1]));
+            }
+          }
+          return s;
+        }
+      }
+
+      let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($idiv);
+      (async function () {
+        try {
+          for (let n = 0; ; n++) {
+            let poly = await get_invariant("alexander_poly", diagram, n);
+            if (n >= 1 && poly.equal(Laurent.unit)) {
+              break;
+            }
+            $alex_polys.append(Q.create("br"));
+            $alex_polys.append("\u0394");
+            $alex_polys.append(Q.create("sup").append(''+n));
+            $alex_polys.append("(t) = ", poly.toDOM("t"));
+          }
+        } catch (x) {
+          $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));
+          throw x;
+        }
+      })();
+
+      let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
+      $alex_mod.append(Q.create("br"));
+      (async function () {
+        let matrix = await get_invariant('alexander_module', diagram);
+        let $table = Q.create("table").addClass("alexander-matrix");
+        matrix.forEach(row => {
+          let $tr = Q.create("tr").appendTo($table);
+          row.forEach(entry => {
+            let $td = Q.create("td").appendTo($tr);
+            $td.append(entry.toDOM("t"));
+          });
+        });
+        $alex_mod.append($table);
+        $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
+      })();
+
+    }
     
     return $div;
   }

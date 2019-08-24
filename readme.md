@@ -4,6 +4,19 @@ This is a program for manipulating and identifying knots and links.  The primary
 
 ![Pencil drawing to a modifiable diagram](https://raw.githubusercontent.com/kmill/knotfolio/master/example.jpg)
 
+## Documentation
+
+The [wiki](https://github.com/kmill/knotfolio/wiki) has a description of the functionality of the program.
+
+## Related programs
+
+* [Knotilus](http://knotilus.math.uwo.ca/)
+* Josh Horowitz's [knot identification tool](http://joshuahhh.com/projects/kit/)
+* [KLO](http://KLO-Software.net)
+* The PLink editor in [SnapPy](https://snappy.math.uic.edu)
+
+See [CompuTop.org](http://computop.org) for Nathan Dunfield's list of software for computational low-dimensional topology.
+
 ## Acknowledgments
 
 Thanks to ICERM for hosting the [Perspectives on Dehn Surgery](https://icerm.brown.edu/topical_workshops/tw19-3-pods/) summer school, where Stefan Mihajlović asked whether there existed any programs for importing knot diagrams from papers, and where Ken Baker and Nathan Dunfield were helpful while I worked on the first prototype.
@@ -16,7 +29,7 @@ Knot identification uses the invaluable KnotInfo and LinkInfo databases:
 
 * J. C. Cha and C. Livingston, LinkInfo: Table of Knot Invariants, http://www.indiana.edu/~linkinfo, August 18, 2019.
 
-The program was written with support of the Simons Foundation.
+The program was written with support of the Simons Foundation and NSF RTG grant DMS-1344991.
 
 ## Running code locally
 
