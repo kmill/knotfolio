@@ -428,7 +428,7 @@ export class KnotDiagramView {
 
     let $sf = Q.create("p", {title:"There is one Seifert linking matrix per connected component of the diagram."},
                        "Seifert form:", Q.create("br")).appendTo($idiv);
-    let the_signature = 0;
+    //let the_signature = 0;
     diagram.seifert_form().forEach(matrix => {
       let $table = Q.create("table", {className:"seifert-matrix"});
       matrix.forEach(row => {
@@ -439,15 +439,15 @@ export class KnotDiagramView {
       });
       $sf.append($table);
 
-      // compute A + A^T
-      let two_cover = matrix.map(row => row.slice());
-      for (let i = 0; i < matrix.length; i++) {
-        for (let j = 0; j < matrix.length; j++) {
-          two_cover[i][j] += matrix[j][i];
-        }
-      }
-
-      the_signature += signature(two_cover);
+      // // compute A + A^T
+      // let two_cover = matrix.map(row => row.slice());
+      // for (let i = 0; i < matrix.length; i++) {
+      //   for (let j = 0; j < matrix.length; j++) {
+      //     two_cover[i][j] += matrix[j][i];
+      //   }
+      // }
+      //
+      // the_signature += signature(two_cover);
     });
 
     let $pd = Q.create("textarea")
@@ -569,11 +569,11 @@ export class KnotDiagramView {
         $det.append('' + Math.abs(det));
       })();
 
-      let $sig;
-      $table.append(Q.create("tr", {title: "The program currently uses floating point arithmetic to compute eigenvalues, hence the warning."},
-                             Q.create("th", "Signature:"),
-                             $sig = Q.create("td", ''+the_signature+" ",
-                                             Q.create("em", "(warning: estimated)"))));
+      // let $sig;
+      // $table.append(Q.create("tr", {title: "The program currently uses floating point arithmetic to compute eigenvalues, hence the warning."},
+      //                        Q.create("th", "Signature:"),
+      //                        $sig = Q.create("td", ''+the_signature+" ",
+      //                                        Q.create("em", "(warning: estimated)"))));
 
 
       let $jones;
@@ -638,7 +638,8 @@ export class KnotDiagramView {
         }
       })();
 
-      let $alex_mod = Q.create("p").append("An Alexander module presentation matrix:").appendTo($idiv);
+      let $alex_mod = Q.create("p", {title:"Mildly simplified (not normalized since Z[t,t^-1] is not a PID)"},
+                               "An Alexander module presentation matrix:").appendTo($idiv);
       $alex_mod.append(Q.create("br"));
       (async function () {
         let matrix = await get_invariant('alexander_module', diagram);

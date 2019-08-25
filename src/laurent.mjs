@@ -1,5 +1,6 @@
 import {assert, SimpleType} from "./util.mjs";
 import {gcd} from "./integers.mjs";
+import {Poly} from "./poly.mjs";
 import Q from "./kq.mjs";
 
 // A Laurent polynomial is a Laurent list of LTerms.
@@ -25,6 +26,9 @@ export class LTerm {
 export class Laurent extends SimpleType {
   copy() {
     return this.slice(); // ok since terms are immutable
+  }
+  is_zero() {
+    return this.length === 0;
   }
   normalize() {
     /* Destructively simplify the polynomial */
@@ -259,6 +263,29 @@ export class Laurent extends SimpleType {
     return this.simple_mul(-1);
   }
 
+  to_poly(preserve_degree=false) {
+    /* Multiplies the Laurent polynomial so that the min degree is 0, returning a Poly. */
+    if (this.length === 0) {
+      return Poly.zero;
+    } else {
+      let minexp = this[0].exp;
+      if (preserve_degree) {
+        assert(minexp >= 0);
+        minexp = 0;
+      }
+      let coeffs = Poly.make();
+      this.forEach(term => {
+        coeffs[term.exp-minexp] = term.coeff;
+      });
+      for (let i = 0; i < coeffs.length; i++) {
+        if (coeffs[i] === void 0) {
+          coeffs[i] = 0;
+        }
+      }
+      return coeffs;
+    }
+  }
+
   coeffs() {
     if (this.length === 0) {
       return [];
@@ -322,69 +349,8 @@ export class Laurent extends SimpleType {
   gcd(p2) {
     /* Compute the gcd of two Laurent polynomials with integer coefficients */
     assert(p2 instanceof Laurent);
-    let C1 = this.coeffs(),
-        C2 = p2.coeffs();
-    C1.forEach(c => assert(c === (0|c)));
-    C2.forEach(c => assert(c === (0|c)));
 
-    function cont(coeffs) {
-      /* Gives the content of the polynomial given by the coefficients */
-      return coeffs.reduce((g, c) => gcd(g, c), 0);
-    }
-
-    let cont_gcd = gcd(cont(C1), cont(C2));
-
-    // denominators for C1 and C2
-    let d1 = 1;
-    let d2 = 1;
-
-    function normalize_and_swap() {
-      while (C1.length > 0 && C1[C1.length - 1] === 0) {
-        C1.pop();
-      }
-      if (C1.length === 0) {
-        d1 = 1;
-      } else {
-        let q = cont(C1);
-        q *= Math.sign(C1[C1.length - 1]);
-        for (let i = 0; i < C1.length; i++) {
-          C1[i] /= q;
-        }
-        d1 = C1[C1.length - 1];
-      }
-      while (C2.length > 0 && C2[C2.length - 1] === 0) {
-        C2.pop();
-      }
-      if (C2.length === 0) {
-        d2 = 1;
-      } else {
-        let q = cont(C2);
-        q *= Math.sign(C2[C2.length - 1]);
-        for (let i = 0; i < C2.length; i++) {
-          C2[i] /= q;
-        }
-        d2 = C2[C2.length - 1];
-      }
-      if (C1.length < C2.length) {
-        let Ct = C1; C1 = C2; C2 = Ct;
-        let dt = d1; d1 = d2; d2 = dt;
-      }
-    }
-
-    normalize_and_swap();
-
-    while (C2.length > 0) {
-      let d = C1.length - C2.length;
-      for (let i = 0; i < C2.length; i++) {
-        C1[i+d] = d2 * C1[i+d] - d1 * C2[i];
-      }
-      normalize_and_swap();
-    }
-
-    for (let i = 0; i < C1.length; i++) {
-      C1[i] = C1[i] * cont_gcd;
-    }
-    return Laurent.fromCoeffs(C1);
+    return Laurent.fromCoeffs(this.to_poly().gcd(p2.to_poly()));
   }
 
   // Making this a NumberSystem

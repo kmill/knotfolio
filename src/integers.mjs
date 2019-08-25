@@ -11,7 +11,7 @@ export const Integers = {
 export function gcd(a, b) {
   /* Calculates the greatest common divisor of the two arguments. */
   assert(a === (0|a));
-  assert(b === (b|b));
+  assert(b === (0|b));
   a = Math.abs(a);
   b = Math.abs(b);
   if (a < b) {

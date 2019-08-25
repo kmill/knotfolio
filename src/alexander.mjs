@@ -2,6 +2,7 @@
 
 import {assert, compare} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
+import {Poly} from "./poly.mjs";
 import {det} from "./matrix.mjs";
 import {PD, P, Xp, Xm} from "./pd.mjs";
 import {FGA, FGWord} from "./fga.mjs";
@@ -48,7 +49,7 @@ export function wirtinger_presentation(pd) {
   while (true) {
     //console.log("rels " + toString(rels));
     // Remove empty words
-    rels = rels.map(r => r.normalize_conj()).filter(word => word.length > 0);
+    rels = rels.map(r => r.normalize_conj(false)).filter(word => word.length > 0);
     // and duplicates
     rels.sort(compare);
     let i = 0;
@@ -137,10 +138,8 @@ export function alexander_module(pres) {
   // This means we can just remove a row and get a presentation matrix.
   matrix.pop();
 
-
-
   // representative generators pres.gens.slice(0, pres.gens.length-1)
-  return matrix;
+  return simplify_presentation_matrix(matrix);
 }
 
 function simplify_presentation_matrix(matrix) {
@@ -148,7 +147,229 @@ function simplify_presentation_matrix(matrix) {
      attempt to sort of simplify it.  We can't eaxctly do Smith Normal
      Form because Z[t,t^{-1}] is not a PID, but we can sure try. */
 
-  throw new Error("unimplemented");
+  if (matrix.length === 0) {
+    return [];
+  }
+
+  // scale by t^n so that everything is a polynomial
+  let min_exp = Infinity;
+  matrix.forEach(row => row.forEach(entry => {
+    if (!entry.is_zero()) {
+      min_exp = Math.min(min_exp, entry.minexp());
+    }
+  }));
+  if (min_exp === Infinity) {
+    min_exp = 0;
+  }
+  let pmatrix = matrix.map(row => row.map(entry => entry.simple_mul(1, -min_exp).to_poly(true)));
+
+  function normalize_row(i) {
+    let min_exp = Infinity;
+    for (let j = 0; j < pmatrix[i].length; j++) {
+      let c = pmatrix[i][j];
+      min_exp = Math.min(min_exp, c.min_exp());
+    }
+    if (min_exp < Infinity) {
+      for (let j = 0; j < pmatrix[i].length; j++) {
+        pmatrix[i][j] = pmatrix[i][j].mul_x(-min_exp);
+      }
+    }
+  }
+
+  function normalize_col(j) {
+    let min_exp = Infinity;
+    for (let i = 0; i < pmatrix.length; i++) {
+      let c = pmatrix[i][j];
+      min_exp = Math.min(min_exp, c.min_exp());
+    }
+    if (min_exp < Infinity) {
+      for (let i = 0; i < pmatrix.length; i++) {
+        pmatrix[i][j] = pmatrix[i][j].mul_x(-min_exp);
+      }
+    }
+  }
+
+  function delete_col(j) {
+    for (let i = 0; i < pmatrix.length; i++) {
+      pmatrix[i].splice(j, 1);
+    }
+  }
+
+  function delete_col_if_zero(j) {
+    let all_zero = true;
+    for (let i = 0; i < pmatrix.length; i++) {
+      all_zero = all_zero && pmatrix[i][j].is_zero();
+    }
+    if (all_zero) {
+      delete_col(j);
+    }
+  }
+  
+  function swap_rows(i1, i2) {
+    if (i1 === i2) {
+      return;
+    }
+    [pmatrix[i1], pmatrix[i2]] = [pmatrix[i2], pmatrix[i1]];
+  }
+  function swap_cols(j1, j2) {
+    if (j1 === j2) {
+      return;
+    }
+    for (let i = 0; i < pmatrix.length; i++) {
+      [pmatrix[i][j1], pmatrix[i][j2]] = [pmatrix[i][j2], pmatrix[i][j1]];
+    }
+  }
+  function add_to_col(j2, j1, c, n) {
+    /* col[j2] += c * col[j1] * x^n */
+    for (let i = 0; i < pmatrix.length; i++) {
+      pmatrix[i][j2] = pmatrix[i][j2].add(pmatrix[i][j1].scale(c).mul_x(n));
+    }
+  }
+
+  for (let j = pmatrix[0].length-1; j >= 0; j--) {
+    delete_col_if_zero(j);
+  }
+  for (let i = 0; i < pmatrix.length; i++) {
+    normalize_row(i);
+  }
+  for (let j = 0; j < pmatrix[0].length; j++) {
+    normalize_col(j);
+  }
+
+  // Now for a modified version of Gaussian elimination (Z[t] not a PID)
+  
+  function gauss_right() {
+    let changed = false;
+
+    let i = 0,
+        j = 0;
+    gauss_loop:
+    while (i < pmatrix.length && j < pmatrix[0].length) {
+      if (pmatrix[i][j].is_zero()) {
+        for (let j2 = j + 1; j2 < pmatrix[0].length; j2++) {
+          if (!pmatrix[i][j2].is_zero()) {
+            swap_cols(j, j2);
+            changed = true;
+            continue gauss_loop;
+          }
+        }
+        i++;
+        continue gauss_loop;
+      }
+      if (pmatrix[i][j].leading_coeff() < 0) {
+        for (let i2 = i; i2 < pmatrix.length; i2++) {
+          pmatrix[i2][j] = pmatrix[i2][j].scale(-1);
+        }
+      }
+      { // reduce from (i,j) rightward if possible
+        let pij = pmatrix[i][j];
+        let deg = pij.degree();
+        let j2 = j + 1;
+        while (j2 < pmatrix[0].length) {
+          let pij2 = pmatrix[i][j2];
+          let deg2 = pij2.degree();
+          if (deg <= deg2 && pij.leading_coeff() <= Math.abs(pij2.leading_coeff())) {
+            let div = pij2.leading_coeff() / pij.leading_coeff();
+            let idiv = Math.sign(div) * Math.floor(Math.abs(div));
+            add_to_col(j2, j, -idiv, deg2 - deg);
+            normalize_col(j2);
+            delete_col_if_zero(j2);
+            changed = true;
+          } else {
+            j2++;
+          }
+        }
+      }
+      { // look for polynomial of least degree with smallest leading coefficient
+        let best_j = j,
+            best_deg = pmatrix[i][j].degree(),
+            best_leading = pmatrix[i][j].leading_coeff();
+        for (let j2 = j + 1; j2 < pmatrix[0].length; j2++) {
+          let pij2 = pmatrix[i][j2];
+          if (!pij2.is_zero() && pij2.degree() <= best_deg && Math.abs(pij2.leading_coeff()) <= best_leading) {
+            best_j = j2;
+            best_deg = pij2.degree();
+            best_leading = Math.abs(pij2.leading_coeff());
+          }
+        }
+        if (best_j !== j) {
+          swap_cols(j, best_j);
+          changed = true;
+          continue gauss_loop;
+        }
+      }
+      { // check that eliminated everything
+        let eliminated = true;
+        for (let j2 = j + 1; j2 < pmatrix[0].length; j2++) {
+          eliminated = eliminated && pmatrix[i][j2].is_zero();
+        }
+        if (!eliminated) {
+          break gauss_loop;
+        }
+      }
+      i++;
+      j++;
+    }
+
+    return changed;
+  }
+
+  function eliminate_null_gens() {
+    let j = 0;
+    next_gen:
+    while (j < pmatrix[0].length) {
+      let idx = null;
+      for (let i = 0; i < pmatrix.length; i++) {
+        let pij = pmatrix[i][j];
+        if (!pij.is_zero()) {
+          if (idx !== null || pij.degree() !== 0 || Math.abs(pij[0]) != 1) {
+            j++;
+            continue next_gen;
+          } else {
+            idx = i;
+          }
+        }
+      }
+      assert(idx !== null);
+      delete_col(j);
+      pmatrix.splice(idx, 1);
+    }
+  }
+
+  // temporary transpose
+  function transpose() {
+    let rows = pmatrix.length,
+        cols = rows > 0 ? pmatrix[0].length : 0;
+    let tpmatrix = new Array(cols);
+    for (let i = 0; i < cols; i++) {
+      tpmatrix[i] = new Array(rows);
+      for (let j = 0; j < rows; j++) {
+        tpmatrix[i][j] = pmatrix[j][i];
+      }
+    }
+    pmatrix = tpmatrix;
+  }
+
+  // make a best-effort reduction
+  for (let max_attempts = 4; max_attempts > 0; max_attempts--) {
+    let changed = false;
+    changed = gauss_right() || changed;
+    eliminate_null_gens();
+    pmatrix.reverse().forEach(row => row.reverse()); // sort of makes do back-substitution
+    changed = gauss_right() || changed;
+    eliminate_null_gens();
+    transpose(); // makes do row reduction other way
+    changed = gauss_right() || changed;
+    pmatrix.reverse().forEach(row => row.reverse());
+    changed = gauss_right() || changed;
+    transpose(); // return to correct form!
+    eliminate_null_gens();
+    if (!changed) {
+      break;
+    }
+  }
+
+  return pmatrix.map(row => row.map(entry => Laurent.fromCoeffs(entry)));
 }
 
 export function alexander_polynomial(module, n=0) {

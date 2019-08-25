@@ -46,8 +46,11 @@ export class FGWord extends SimpleType {
     return this;
   }
 
-  normalize_conj() {
-    /* Reduce the word, allowing conjugation and inversion, putting it into a normal form. Returns a new word. */
+  normalize_conj(full_normalize=true) {
+    /* Reduce the word, allowing conjugation and inversion, putting it
+       into a normal form. Returns a new word.  If full_normalize is
+       true, then returns the lexicographically minimal word among all
+       conjugates. */
     let w = this.slice();
     while (true) {
       w.normalize();
@@ -61,8 +64,8 @@ export class FGWord extends SimpleType {
       }
       break;
     }
-    if (w.length === 0) {
-      return FGWord.make();
+    if (!full_normalize || w.length === 0) {
+      return w;
     }
     let shifts = [];
     for (let i = 0; i < w.length; i += 2) {
