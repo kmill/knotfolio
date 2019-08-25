@@ -239,6 +239,9 @@ function simplify_presentation_matrix(matrix) {
   // Now for a modified version of Gaussian elimination (Z[t] not a PID)
   
   function gauss_right() {
+    if (pmatrix.length === 0) {
+      return false;
+    }
     let changed = false;
 
     let i = 0,
@@ -354,17 +357,24 @@ function simplify_presentation_matrix(matrix) {
   for (let max_attempts = 4; max_attempts > 0; max_attempts--) {
     let changed = false;
     changed = gauss_right() || changed;
+    if (pmatrix.length === 0) break;
     eliminate_null_gens();
+    if (pmatrix.length === 0) break;
     pmatrix.reverse().forEach(row => row.reverse()); // sort of makes do back-substitution
     changed = gauss_right() || changed;
+    if (pmatrix.length === 0) break;
     eliminate_null_gens();
+    if (pmatrix.length === 0) break;
+    let old_pmatrix = pmatrix;
     transpose(); // makes do row reduction other way
     changed = gauss_right() || changed;
+    if (pmatrix.length === 0) { pmatrix = old_pmatrix; break; }
     pmatrix.reverse().forEach(row => row.reverse());
     changed = gauss_right() || changed;
+    if (pmatrix.length === 0) { pmatrix = old_pmatrix; break; }
     transpose(); // return to correct form!
     eliminate_null_gens();
-    if (!changed) {
+    if (!changed || pmatrix.length === 0) {
       break;
     }
   }
