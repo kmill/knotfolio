@@ -320,7 +320,7 @@ function simplify_presentation_matrix(matrix) {
   function eliminate_null_gens() {
     let j = 0;
     next_gen:
-    while (j < pmatrix[0].length) {
+    while (pmatrix.length > 0 && j < pmatrix[0].length) {
       let idx = null;
       for (let i = 0; i < pmatrix.length; i++) {
         let pij = pmatrix[i][j];
