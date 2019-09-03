@@ -16,14 +16,14 @@ body {
     padding-bottom: 2px;
     text-align: right;
 }
-#ref-links a {
+a {
     text-decoration: none;
     color: rgb(0, 0, 238);
 }
-#ref-links a:visited {
+a:visited {
     color: rgb(0, 0, 238);
 }
-#ref-links a:hover {
+a:hover {
     text-decoration: underline;
 }
 
@@ -40,6 +40,7 @@ body {
 }
 #tools-td {
     width: 400px;
+    min-width: 400px;
     background: #eee;
     border: 1px solid #000;
     font-size: 11pt;
@@ -208,4 +209,16 @@ form.inline-form {
 
 .calc-error {
     color: #770000;
+}
+
+#contact {
+    position: fixed;
+    right:0; bottom: 0;
+    
+    font-size: 10pt;
+    background: #fafafa;
+    padding: 3px;
+}
+#space {
+    height: 2em;
 }

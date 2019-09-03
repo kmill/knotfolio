@@ -14,6 +14,19 @@ let global_tool_state = {
 
 let default_pd_type = "KnotTheory";
 
+let global_details_states = {
+  "linking-matrix": true,
+  "seifert-matrix": false,
+  "alexander-module": false
+};
+function attach_details_handler(name, $details) {
+  let initial_state = Boolean(global_details_states[name]);
+  $details.prop("open", initial_state);
+  $details.on("toggle", e => {
+    global_details_states[name] = $details.prop("open");
+  });
+}
+
 export class KnotDiagramView {
   constructor(width, height, diagram) {
     assert(width > 0);
@@ -405,7 +418,11 @@ export class KnotDiagramView {
                              Q.create("th", "Properties:"),
                              Q.create("td", props.length > 0 ? props.join(", ") : Q.create("em", "none"))));
 
-      let $lm = Q.create("p", "Linking matrix:", Q.create("br")).appendTo($idiv);
+      let $lm = Q.create("details",
+                         {title: "Pairwise linking numbers between colored components. Self linking number is writhe."},
+                         Q.create("summary", "Linking matrix"))
+          .appendTo($idiv);
+      attach_details_handler("linking-matrix", $lm);
       {
         let matrix = this.diagram.linking_matrix();
         let comps = Array.from(matrix.keys());
@@ -426,8 +443,13 @@ export class KnotDiagramView {
       }
     }
 
-    let $sf = Q.create("p", {title:"There is one Seifert linking matrix per connected component of the diagram."},
-                       "Seifert form:", Q.create("br")).appendTo($idiv);
+    let $sf = Q.create("details",
+                       {title:"There is one Seifert linking matrix per connected component of the diagram."},
+                       Q.create("summary", "Seifert form"))
+        .appendTo($idiv);
+
+    attach_details_handler("seifert-matrix", $sf);
+
     //let the_signature = 0;
     diagram.seifert_form().forEach(matrix => {
       let $table = Q.create("table", {className:"seifert-matrix"});
@@ -638,9 +660,11 @@ export class KnotDiagramView {
         }
       })();
 
-      let $alex_mod = Q.create("p", {title:"Mildly simplified (not normalized since Z[t,t^-1] is not a PID)"},
-                               "An Alexander module presentation matrix:").appendTo($idiv);
-      $alex_mod.append(Q.create("br"));
+      let $alex_mod = Q.create("details",
+                               {title:"Mildly simplified (not normalized since Z[t,t^-1] is not a PID)"},
+                               Q.create("summary", "An Alexander module presentation matrix:"))
+          .appendTo($idiv);
+      attach_details_handler("alexander-module", $alex_mod);
       (async function () {
         let matrix = await get_invariant('alexander_module', diagram);
         let $table = Q.create("table").addClass("alexander-matrix");

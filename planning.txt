@@ -9,7 +9,7 @@ Things to compute:
 - [ ] HOMFLY polynomial
 - [ ] Khovanov homology?
 - [X] signature
-- [ ] DT code for knots
+- [X] DT code for knots
 - [ ] is there a face with a braid axis?
 
 Manipulations:
@@ -22,3 +22,4 @@ Maybe change?
 
 - in the image loader, make the image centered
 - for alexander polynomial, use bignums since gcd can have overflows
+- for Wirtinger presentation, make it be less agressive with substitution, since the relation words grow exponentially, especially with large alternating knots!  This could be through an artificial limit in the size of words, or it could be using a different representation of words of conjugates.
