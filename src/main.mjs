@@ -41,7 +41,7 @@ Q(function () {
 
   function mousePos(e) {
     let rect = canvas[0].getBoundingClientRect();
-    return new Point(e.clientX - rect.left-1, e.clientY - rect.top-1);
+    return new Point(Math.floor(e.clientX - rect.left-1), Math.floor(e.clientY - rect.top-1));
   }
 
   var color = null;
