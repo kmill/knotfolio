@@ -74,6 +74,35 @@ Q(function () {
     }
   });
 
+  canvas.on("touchstart", function (e) {
+    if (e.touches.length > 1) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.button = 0;
+    undo_stack.get().mousedown(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
+  });
+  canvas.on("touchmove", function (e) {
+    if (e.touches.length > 1) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.button = 0;
+    undo_stack.get().mousemove(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
+  });
+  canvas.on("touchend", function (e) {
+    if (e.touches.length > 0) {
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    e.button = 0;
+    undo_stack.get().mouseup(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
+  });
+
+
   function process_img_upload() {
     let img = this;
     undo_stack.push(new KnotImageImportView(WIDTH, HEIGHT, img));

@@ -17,6 +17,11 @@ Manipulations:
 - [ ] cablings (like longitudinal pushoff)
 - [ ] Whitehead doubling
 
+Input methods:
+
+- [ ] pretzels
+- [ ] braid closures
+- [ ] rational knots
 
 Maybe change?
 
