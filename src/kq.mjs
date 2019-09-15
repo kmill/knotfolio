@@ -103,6 +103,14 @@ Q.prototype.appendTo = function (node) {
   }
   return this;
 };
+Q.prototype.remove = function () {
+  for (var i = 0; i < this.length; i++) {
+    if (this[i].parentNode !== null) {
+      this[i].parentNode.removeChild(this[i]);
+    }
+  }
+  return this;
+};
 Q.prototype.addClass = function (cls) {
   for (var i = 0; i < this.length; i++) {
     this[i].classList.add(cls);

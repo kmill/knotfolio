@@ -227,8 +227,8 @@ export class KnotRasterView {
     $div.append(
       Q.create("label", {title: "Load an image from a file (can also drag and drop from the filesystem or sometimes copy and paste)"},
                "Load image: ",
-               Q.create("input", {type: "file"})
-               .on("input", e => {
+               Q.create("input", {type: "file", accept: "image/*"})
+               .on("change", e => {
                  let file = e.target.files[0];
                  if (file) {
                    let reader = new FileReader();

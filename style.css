@@ -2,6 +2,31 @@ body {
     background: #ccc;
 }
 
+div.program-error {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    border: 3px solid red;
+    border-radius: 3px;
+    background: white;
+    padding: 0.5em;
+}
+div.program-error h1 {
+    margin: 0 0 0.5em 0;
+    font-size: 120%;
+    font-weight: bold;
+}
+div.program-error p {
+    margin: 0.5em 0 0.5em 0;
+}
+.program-error-close {
+    float: right;
+/*    border: 1px solid black;
+    padding: 3px;*/
+    margin: 1px;
+}
+
 #header {
     padding-bottom: 2px;
 }

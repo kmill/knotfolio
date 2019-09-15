@@ -10,6 +10,18 @@ import {Point} from "./geom2d.mjs";
 import Q from "./kq.mjs";
 
 Q(function () {
+  window.addEventListener('error', function (e) {
+    let close = Q.create("input", {type:"button", className:"program-error-close"}).value("X");
+    let $box = Q.create("div", {className:"program-error"},
+                        close,
+                        Q.create("h1", "Unhandled error"),
+                        Q.create("p", "Message: " + e.message),
+                        Q.create("p", "in " + e.filename + ":" + e.lineno + ":" + e.colno),
+                        Q.create("p", "Error object: " + JSON.stringify(e.error)));
+    Q("body").append($box);
+    close.on("click", e => $box.remove());
+  });
+
   var undo_stack = new UndoStack();
 
   undo_stack.listeners.push(undo_stack => {
@@ -81,6 +93,7 @@ Q(function () {
     e.preventDefault();
     e.stopPropagation();
     e.button = 0;
+    e.buttons = 1;
     undo_stack.get().mousedown(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
   });
   canvas.on("touchmove", function (e) {
@@ -90,6 +103,7 @@ Q(function () {
     e.preventDefault();
     e.stopPropagation();
     e.button = 0;
+    e.buttons = 1;
     undo_stack.get().mousemove(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
   });
   canvas.on("touchend", function (e) {
@@ -99,6 +113,7 @@ Q(function () {
     e.preventDefault();
     e.stopPropagation();
     e.button = 0;
+    e.buttons = 0;
     undo_stack.get().mouseup(mousePos(e.changedTouches[0]), e, undo_stack, ctxt);
   });
 
