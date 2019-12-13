@@ -140,6 +140,13 @@ export class KnotDiagramView {
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
       }
+    } else if (tool === "virtual-crossing") {
+      let closest = this.find_closest_crossing(pt);
+      if (closest !== null) {
+        let view = this.copy();
+        view.diagram.make_virtual(closest);
+        undo_stack.push(view);
+      }
     } else if (tool === "toggle-orientation") {
       let circuit = this.find_closest_circuit(pt);
       if (circuit !== null) {
@@ -173,6 +180,12 @@ export class KnotDiagramView {
     pt = this.mouse_to_pt(pt);
     let tool = global_tool_state.tool;
     if (tool === "crossing-change") {
+      this.paint(ctxt);
+      let closest = this.find_closest_crossing(pt);
+      if (closest !== null) {
+        this.draw_crossing_disk(ctxt, this.diagram.verts[closest]);
+      }
+    } else if (tool === "virtual-crossing") {
       this.paint(ctxt);
       let closest = this.find_closest_crossing(pt);
       if (closest !== null) {
@@ -224,6 +237,12 @@ export class KnotDiagramView {
         .addClass("icon-button")
         .prop("data-tool", "crossing-change")
         .prop("title", "Change crossing type")
+        .appendTo($tools);
+
+    let $make_virtual = Q.span("\u29BB")
+        .addClass("icon-button")
+        .prop("data-tool", "virtual-crossing")
+        .prop("title", "Make virtual crossing")
         .appendTo($tools);
 
     let $toggle_orientation = Q.span("\u21C4")
@@ -391,14 +410,14 @@ export class KnotDiagramView {
                              Q.create("td", ''+this.diagram.bridge_number())));
 
 
-      $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
-                             Q.create("th", "Can. genus:"),
-                             Q.create("td", ''+this.diagram.genus())));
+      // $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
+      //                        Q.create("th", "Can. genus:"),
+      //                        Q.create("td", ''+this.diagram.genus())));
 
-      let turaev = this.diagram.turaev();
-      $table.append(Q.create("tr",
-                             Q.create("th", "Turaev genus:"),
-                             Q.create("td", ''+turaev.genus)));
+      // let turaev = this.diagram.turaev();
+      // $table.append(Q.create("tr",
+      //                        Q.create("th", "Turaev genus:"),
+      //                        Q.create("td", ''+turaev.genus)));
 
 
       let props = [];
@@ -406,13 +425,13 @@ export class KnotDiagramView {
         props.push("alternating");
       }
 
-      if (turaev.plus && turaev.minus) {
-        props.push("adequate");
-      } else if (turaev.plus) {
-        props.push("plus-adequate");
-      } else if (turaev.minus) {
-        props.push("minus-adequate");
-      }
+      // if (turaev.plus && turaev.minus) {
+      //   props.push("adequate");
+      // } else if (turaev.plus) {
+      //   props.push("plus-adequate");
+      // } else if (turaev.minus) {
+      //   props.push("minus-adequate");
+      // }
 
       $table.append(Q.create("tr",
                              Q.create("th", "Properties:"),
@@ -443,34 +462,34 @@ export class KnotDiagramView {
       }
     }
 
-    let $sf = Q.create("details",
-                       {title:"There is one Seifert linking matrix per connected component of the diagram."},
-                       Q.create("summary", "Seifert form"))
-        .appendTo($idiv);
+    // let $sf = Q.create("details",
+    //                    {title:"There is one Seifert linking matrix per connected component of the diagram."},
+    //                    Q.create("summary", "Seifert form"))
+    //     .appendTo($idiv);
 
-    attach_details_handler("seifert-matrix", $sf);
+    // attach_details_handler("seifert-matrix", $sf);
 
-    //let the_signature = 0;
-    diagram.seifert_form().forEach(matrix => {
-      let $table = Q.create("table", {className:"seifert-matrix"});
-      matrix.forEach(row => {
-        let $tr = Q.create("tr").appendTo($table);
-        row.forEach(c => {
-          $tr.append(Q.create("td", ''+c));
-        });
-      });
-      $sf.append($table);
+    // //let the_signature = 0;
+    // diagram.seifert_form().forEach(matrix => {
+    //   let $table = Q.create("table", {className:"seifert-matrix"});
+    //   matrix.forEach(row => {
+    //     let $tr = Q.create("tr").appendTo($table);
+    //     row.forEach(c => {
+    //       $tr.append(Q.create("td", ''+c));
+    //     });
+    //   });
+    //   $sf.append($table);
 
-      // // compute A + A^T
-      // let two_cover = matrix.map(row => row.slice());
-      // for (let i = 0; i < matrix.length; i++) {
-      //   for (let j = 0; j < matrix.length; j++) {
-      //     two_cover[i][j] += matrix[j][i];
-      //   }
-      // }
-      //
-      // the_signature += signature(two_cover);
-    });
+    //   // // compute A + A^T
+    //   // let two_cover = matrix.map(row => row.slice());
+    //   // for (let i = 0; i < matrix.length; i++) {
+    //   //   for (let j = 0; j < matrix.length; j++) {
+    //   //     two_cover[i][j] += matrix[j][i];
+    //   //   }
+    //   // }
+    //   //
+    //   // the_signature += signature(two_cover);
+    // });
 
     let $pd = Q.create("textarea")
         .attr("readonly", true)
@@ -515,11 +534,11 @@ export class KnotDiagramView {
                  .append($pdtypes, Q.create("br"), $pd));
     pd_change(default_pd_type);
 
-    let dt = diagram.get_dt();
-    if (dt) {
-      $idiv.append(Q.create("p")
-                   .append("DT: " + toString(dt)));
-    }
+    // let dt = diagram.get_dt();
+    // if (dt) {
+    //   $idiv.append(Q.create("p")
+    //                .append("DT: " + toString(dt)));
+    // }
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
@@ -553,8 +572,8 @@ export class KnotDiagramView {
             if (i > 0) {
               $ident.append(", ");
             }
-            if (c.katlas) {
-              $ident.append(Q.create("a", {href: c.katlas,
+            if (c.url) {
+              $ident.append(Q.create("a", {href: c.url,
                                            target: "_blank"},
                                      c.name));
             } else {
@@ -598,11 +617,27 @@ export class KnotDiagramView {
       //                                        Q.create("em", "(warning: estimated)"))));
 
 
-      let $jones;
       $idiv.append(Q.create("p")
-                   .append("Jones polynomial:")
-                   .append($jones = Q.create("div")));
-      laurent_invariant(get_invariant('jones_poly', this.diagram), $jones, "t", 2);
+                   .append("Cabled Jones polynomials:"));
+
+      let $cjones = Q.create("div").appendTo($idiv);
+      let next_cjones = 1;
+      const do_next_cjones = () => {
+        let i = next_cjones++;
+        let $cj = Q.create("span");
+        $cjones.append(Q.create("div").append("V", Q.create("sub", i), " = ", $cj));
+        laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", 2);
+      };
+      do_next_cjones();
+      do_next_cjones();
+      let $nextJones = Q.create("input")
+          .prop("type", "button")
+          .value("Next")
+          .prop("title", "Compute next cabled Jones polynomial")
+          .appendTo($idiv);
+      $nextJones.on("click", e => {
+        do_next_cjones();
+      });
 
       if (0) {
         let wp = get_invariant(this.diagram, 'wirtinger_presentation');

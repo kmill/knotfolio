@@ -270,6 +270,27 @@ export class KnotGraph {
     this.adjs = newadjs;
   }
 
+  make_virtual(vtx_i) {
+    /* Takes the crossing and converts it into a "virtual crossing" by
+       replacing it with two vertices.  Results in a non-planar diagram. */
+    assert(this.adjs[vtx_i].length === 4);
+    let adj = this.adjs[vtx_i];
+    let vtx_j = this.verts.length;
+    this.verts[vtx_j] = this.verts[vtx_i].copy();
+    this.adjs[vtx_i] = [adj[0], adj[2]];
+    this.adjs[vtx_j] = [adj[1], adj[3]];
+
+    this.adjs[vtx_j].forEach(dart => {
+      let eid = Math.abs(dart) - 1;
+      let edge = this.edges[eid];
+      if (edge[0] === vtx_i) {
+        edge[0] = vtx_j;
+      } else {
+        edge[1] = vtx_j;
+      }
+    });
+  }
+
   unsubdivide(vtx_i) {
     /* Does not check if this operation will leave the diagram in a non-planar state. */
     assert(this.adjs[vtx_i].length === 2);
