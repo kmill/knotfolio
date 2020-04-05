@@ -49,7 +49,7 @@ export class KnotDiagramView {
     let view = new KnotDiagramView(this.width, this.height, this.diagram.copy());
     view.c = this.c.copy();
     view.zoom = this.zoom;
-    view.identify_try_hard = this.identify_try_hard;
+    //view.identify_try_hard = this.identify_try_hard; // TODO not sure if should copy
     return view;
   }
 
@@ -601,8 +601,12 @@ export class KnotDiagramView {
     $idiv.append(Q.create("h2").append("Identification"));
     let $ident = Q.create("p").appendTo($idiv);
 
+    $ident.append(Q.create("em", "Calculating"));
+
     get_invariant('identify_link', this.diagram, this.identify_try_hard).then(
       names => {
+        $ident.empty();
+
         if (names.length === 0) {
           $ident.append("Unknown link");
         } else {

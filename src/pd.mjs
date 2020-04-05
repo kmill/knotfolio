@@ -125,9 +125,13 @@ export function pd_first_free_id(diagram) {
 }
 
 export function pd_writhe_normalize(diagram) {
-  /* Given an oriented PD with no P's, returns a zero-writhe PD. */
+  /* Given an oriented PD, returns a zero-writhe PD. */
   assert(diagram instanceof PD);
-  
+
+  let eliminated = pd_eliminate_paths(diagram);
+  let n_unknots = eliminated.unknots;
+  diagram = eliminated.diagram;
+
   // Calculate writhes of components
   let arc_comps = new Map; // arc_id -> component_id (a canonical arc id)
   function arc_find(arc) {
@@ -206,5 +210,62 @@ export function pd_writhe_normalize(diagram) {
     }
   });
 
-  return diagram.concat(new_entities);
+  diagram = diagram.concat(new_entities);
+
+  // Reinsert unknots
+  for (let i = 0; i < n_unknots; i++) {
+    let a = free_id++;
+    diagram.push(P.make(a, a));
+  }
+
+  return diagram;
+}
+
+export function pd_form_cabling(diagram, cables) {
+  diagram = pd_writhe_normalize(diagram);
+
+  let eliminated = pd_eliminate_paths(diagram);
+  let n_unknots = eliminated.unknots;
+  diagram = eliminated.diagram;
+
+  let free_id = pd_first_free_id(diagram);
+
+  free_id = 1 + cables + cables * free_id;
+  let cabled = PD.make();
+  diagram.forEach(entity => {
+    let idxs = [], endidxs = [];
+    if (entity.constructor === Xp) {
+      for (let i = 0; i < cables; i++) {
+        idxs.push(cables*entity[3] + i);
+        endidxs.push(cables*entity[1] + i);
+      }
+    } else {
+      for (let i = 0; i < cables; i++) {
+        idxs.push(cables*entity[3] + (cables - i - 1));
+        endidxs.push(cables*entity[1] + (cables - i - 1));
+      }
+    }
+
+    for (let j = 0; j < cables; j++) {
+      let c = cables*entity[2] + j;
+      let idxs2 = [];
+      for (let i = 0; i < cables; i++) {
+        let d = idxs[i];
+        let b = j + 1 === cables ? endidxs[i] : free_id++;
+        let a = i + 1 === cables ? cables*entity[0] + j : free_id++;
+        cabled.push(X.make(a, b, c, d));
+        idxs2.push(b);
+        c = a;
+      }
+      idxs = idxs2;
+    }
+  });
+
+  // Reinsert unknots
+  for (let i = 0; i < n_unknots * cables; i++) {
+    let a = free_id++;
+    cabled.push(P.make(a, a));
+  }
+
+  return cabled;
 }

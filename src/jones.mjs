@@ -2,10 +2,48 @@
 
 import {assert, remove_value} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
-import {PD, P, X, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id} from "./pd.mjs";
+import {PD, P, X, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id, pd_form_cabling} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
+
+function sort_pd_heuristic(pd) {
+  /* Sorts the entities in the PD so that each entity is chosen to minimize the next frontier. */
+  assert(pd instanceof PD);
+  pd = pd.slice();
+
+  let frontier = [];
+  let sorted = [];
+
+  while (pd.length > 0) {
+    // find "best" next entity, using the least-new-frontier heuristic
+    let best_delta = Infinity;
+    let best_eid = null;
+    pd.forEach((entity, eid) => {
+      let delta = entity.length;
+      entity.forEach(i => {
+        if (frontier.indexOf(i) !== -1) {
+          delta -= 2;
+        }
+      });
+      if (delta < best_delta) {
+        best_delta = delta;
+        best_eid = eid;
+      }
+    });
+    let entity = pd[best_eid];
+    sorted.push(entity);
+    pd.splice(best_eid, 1);
+
+    // update frontier
+    entity.forEach(i => {
+      if (!remove_value(frontier, i)) {
+        frontier.push(i);
+      }
+    });
+  }
+  return sorted;
+}
 
 define_invariant("kauffman_bracket", async function (mt, pd) {
   if (!(pd instanceof PD)) {
@@ -15,30 +53,13 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
   if (pd.length === 0) {
     return null;
   }
-  pd = pd.slice();
+  pd = sort_pd_heuristic(pd);
 
-  let frontier = [];
   let bracket = TL.unit;
-  while (pd.length > 0) {
-    await mt.next_turn();
 
-    // find "best" next entity, using the most-in-frontier heuristic
-    let best_count = -1;
-    let best_eid = null;
-    pd.forEach((entity, eid) => {
-      let count = 0;
-      entity.forEach(i => {
-        if (frontier.indexOf(i) !== -1) {
-          count++;
-        }
-      });
-      if (count > best_count) {
-        best_count = count;
-        best_eid = eid;
-      }
-    });
-    let entity = pd[best_eid];
-    pd.splice(best_eid, 1);
+  for (let i = 0; i < pd.length; i++) {
+    await mt.next_turn();
+    let entity = pd[i];
     let tl = null;
     if (entity.length === 2) {
       let [a, b] = entity;
@@ -51,14 +72,8 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
                                             new TLPath(b, c)]));
     }
     bracket = bracket.mul(tl);
-
-    // update frontier
-    entity.forEach(i => {
-      if (!remove_value(frontier, i)) {
-        frontier.push(i);
-      }
-    });
   }
+
   assert(bracket.length <= 1);
   if (bracket.length === 0) {
     return Laurent.zero;
@@ -119,60 +134,9 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
   }
   assert(diagram instanceof PD);
 
-  let eliminated = pd_eliminate_paths(diagram);
-  let n_unknots = eliminated.unknots;
-  diagram = eliminated.diagram;
+  let cabled = pd_form_cabling(diagram, cables);
 
-  console.log(diagram.toString());
-
-  diagram = pd_writhe_normalize(diagram);
-
-  console.log(diagram.toString());
-
-  let free_id = pd_first_free_id(diagram);
-
-  // form cabling
-  free_id = 1 + cables + cables * free_id;
-  let cabled = PD.make();
-  diagram.forEach(entity => {
-    let idxs = [], endidxs = [];
-    if (entity.constructor === Xp) {
-      for (let i = 0; i < cables; i++) {
-        idxs.push(cables*entity[3] + i);
-        endidxs.push(cables*entity[1] + i);
-      }
-    } else {
-      for (let i = 0; i < cables; i++) {
-        idxs.push(cables*entity[3] + (cables - i - 1));
-        endidxs.push(cables*entity[1] + (cables - i - 1));
-      }
-    }
-
-    for (let j = 0; j < cables; j++) {
-      let c = cables*entity[2] + j;
-      let idxs2 = [];
-      for (let i = 0; i < cables; i++) {
-        let d = idxs[i];
-        let b = j + 1 === cables ? endidxs[i] : free_id++;
-        let a = i + 1 === cables ? cables*entity[0] + j : free_id++;
-        cabled.push(X.make(a, b, c, d));
-        idxs2.push(b);
-        c = a;
-      }
-      idxs = idxs2;
-    }
-  });
-
-  // Reinsert unknots
-  for (let i = 0; i < n_unknots * cables; i++) {
-    let a = free_id++;
-    cabled.push(P.make(a, a));
-  }
-
-  console.log(cabled.toString());
-  diagram = cabled;
-
-  let kb = await get_invariant('kauffman_bracket', diagram);
+  let kb = await get_invariant('kauffman_bracket', cabled);
   if (kb === null) {
     return null;
   }
