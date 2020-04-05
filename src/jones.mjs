@@ -2,7 +2,7 @@
 
 import {assert, remove_value} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
-import {PD, P, X, Xp, Xm} from "./pd.mjs";
+import {PD, P, X, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
@@ -119,114 +119,17 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
   }
   assert(diagram instanceof PD);
 
-  // Remove all P entities
-  let n_unknots = 0;
-  diagram = diagram.map(entity => entity.slice());
-  for (let i = 0; i < diagram.length;) {
-    let entity = diagram[i];
-    if (entity.constructor === P) {
-      if (entity[0] === entity[1]) {
-        n_unknots++;
-      } else {
-        for (let j = 0; j < diagram.length; j++) {
-          diagram[j] = diagram[j].map(arc => arc === entity[1] ? entity[0] : arc);
-        }
-      }
-      diagram.splice(i, 1);
-    } else {
-      i++;
-    }
-  }
+  let eliminated = pd_eliminate_paths(diagram);
+  let n_unknots = eliminated.unknots;
+  diagram = eliminated.diagram;
 
   console.log(diagram.toString());
 
-  // Calculate writhes of components
-  let arc_comps = new Map; // arc_id -> component_id (a canonical arc id)
-  function arc_find(arc) {
-    while (arc_comps.has(arc)) {
-      arc = arc_comps.get(arc);
-    }
-    return arc;
-  }
-  function arc_join(arc1, arc2) {
-    arc1 = arc_find(arc1);
-    arc2 = arc_find(arc2);
-    if (arc1 !== arc2) {
-      arc_comps.set(arc2, arc1);
-    }
-  }
-  diagram.forEach(entity => {
-    if (entity.constructor === Xp || entity.constructor === Xm) {
-      arc_join(entity[0], entity[2]);
-      arc_join(entity[1], entity[3]);
-    } else {
-      throw new TypeError;
-    }
-  });
-  let writhes = new Map;
-  function update_writhe(arc, delta) {
-    arc = arc_find(arc);
-    if (writhes.has(arc)) {
-      writhes.set(arc, writhes.get(arc) + delta);
-    } else {
-      writhes.set(arc, delta);
-    }
-  }
-  diagram.forEach(entity => {
-    if (arc_find(entity[0]) === arc_find(entity[1])) {
-      if (entity.constructor === Xp) {
-        update_writhe(entity[0], 1);
-      } else {
-        update_writhe(entity[1], -1);
-      }
-    }
-  });
-
-  let free_id = 1;
-  diagram.forEach(entity => {
-    entity.forEach(i => {
-      free_id = Math.max(free_id, i + 1);
-    });
-  });
-
-  let new_entities = [];
-  function maybe_insert_twists(entity, idx) {
-    let i = entity[idx];
-    if (!writhes.has(i))
-      return;
-    let wr = writhes.get(i);
-    writhes.delete(i);
-
-    while (wr > 0) {
-      wr--;
-      let j = free_id++;
-      let k = free_id++;
-      new_entities.push(Xm.make(j, k, k, i));
-      i = j;
-    }
-    while (wr < 0) {
-      wr++;
-      let j = free_id++;
-      let k = free_id++;
-      new_entities.push(Xp.make(k, k, i, j));
-      i = j;
-    }
-    entity[idx] = i;
-  }
-  diagram.forEach(entity => {
-    if (entity.constructor === Xp) {
-      maybe_insert_twists(entity, 1);
-      maybe_insert_twists(entity, 2);
-    } else {
-      maybe_insert_twists(entity, 2);
-      maybe_insert_twists(entity, 3);
-    }
-  });
-  new_entities.forEach(entity => {
-    diagram.push(entity);
-  });
+  diagram = pd_writhe_normalize(diagram);
 
   console.log(diagram.toString());
+
+  let free_id = pd_first_free_id(diagram);
 
   // form cabling
   free_id = 1 + cables + cables * free_id;

@@ -13,6 +13,7 @@ let global_tool_state = {
 };
 
 let default_pd_type = "KnotTheory";
+let default_laurent_type = "DOM";
 
 let global_details_states = {
   "linking-matrix": true,
@@ -40,12 +41,15 @@ export class KnotDiagramView {
     this.zoom = 1;
 
     this.mode_name = "Diagrams"; // constant
+
+    this.identify_try_hard = 0;
   }
 
   copy() {
     let view = new KnotDiagramView(this.width, this.height, this.diagram.copy());
     view.c = this.c.copy();
     view.zoom = this.zoom;
+    view.identify_try_hard = this.identify_try_hard;
     return view;
   }
 
@@ -385,6 +389,27 @@ export class KnotDiagramView {
 
     $div.append(Q.create("hr"));
 
+    let $laurent_types = Q.create("form", {className: "inline-form"},
+                                  Q.create("label",
+                                           Q.create("input", {type: "radio",
+                                                              name: "laurent-type",
+                                                              value: "DOM"}),
+                                           "Pretty"),
+                                  Q.create("label",
+                                           Q.create("input", {type: "radio",
+                                                              name: "laurent-type",
+                                                              value: "Mathematica"}),
+                                           "Mathematica"));
+    $laurent_types[0].elements['laurent-type'].value = default_laurent_type;
+    let laurent_handlers = [];
+    $laurent_types.on("change", function (e) {
+      let name = this.elements['laurent-type'].value;
+      $laurent_types[0].elements['laurent-type'].value = default_laurent_type = name;
+      laurent_handlers.forEach(h => h());
+    });
+    $div.append(Q.create("div", {style: "float: right;"},
+                         $laurent_types));
+
     $div.append(Q.create("h2").append("Diagram information"));
 
     let $idiv = Q.create("div").prop("id", "diag-info").appendTo($div);
@@ -542,8 +567,21 @@ export class KnotDiagramView {
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
+        function show_poly() {
+          div.empty();
+          switch (default_laurent_type) {
+          case "DOM":
+            div.append(poly.toDOM(variable, exp_divisor));
+            break;
+          case "Mathematica":
+          default:
+            div.append(poly.toMathematica(variable, exp_divisor));
+            break;
+          }
+        }
         if (poly) {
-          div.append(poly.toDOM(variable, exp_divisor));
+          show_poly();
+          laurent_handlers.push(show_poly);
         } else {
           div.append("n/a");
         }
@@ -562,7 +600,8 @@ export class KnotDiagramView {
 
     $idiv.append(Q.create("h2").append("Identification"));
     let $ident = Q.create("p").appendTo($idiv);
-    get_invariant('identify_link', this.diagram).then(
+
+    get_invariant('identify_link', this.diagram, this.identify_try_hard).then(
       names => {
         if (names.length === 0) {
           $ident.append("Unknown link");
@@ -580,6 +619,18 @@ export class KnotDiagramView {
               $ident.append(c.name);
             }
           });
+          if (names.length > 1) {
+            $ident.append(" ");
+            $ident.append(Q.create("input")
+                          .prop("type", "button")
+                          .value("Try harder")
+                          .prop("title", "Calculate more expensive invariants")
+                          .on("click", () => {
+                            let view = this.copy();
+                            view.identify_try_hard = this.identify_try_hard+1;
+                            undo_stack.push(view);
+                          }));
+          }
         }
       },
       err => {
@@ -707,7 +758,7 @@ export class KnotDiagramView {
           let $tr = Q.create("tr").appendTo($table);
           row.forEach(entry => {
             let $td = Q.create("td").appendTo($tr);
-            $td.append(entry.toDOM("t"));
+            laurent_invariant(Promise.resolve(entry), $td, "t");
           });
         });
         $alex_mod.append($table);

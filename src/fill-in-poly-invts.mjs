@@ -33,7 +33,7 @@ export async function compute() {
     });
 
     let jones = [];
-    for (let i = 1; i <= 2; i++) {
+    for (let i = 1; i <= 3; i++) {
       let poly = await get_invariant("cabled_jones_poly", pd, i);
       jones.push(poly ? [poly.minexp()].concat(poly.coeffs()) : [0]);
     }

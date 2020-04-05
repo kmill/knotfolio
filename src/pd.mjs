@@ -83,3 +83,128 @@ export class Xm extends X {
     return "Xm[" + this.join(",") + "]";
   }
 }
+
+export function pd_eliminate_paths(diagram) {
+  /* Takes a PD diagram, returns {unknots: int, diagram: PD}, where
+  the resulting diagram has no P entities anymore. */
+  assert(diagram instanceof PD);
+
+  let n_unknots = 0;
+  diagram = diagram.map(entity => entity.slice());
+  for (let i = 0; i < diagram.length;) {
+    let entity = diagram[i];
+    if (entity.constructor === P) {
+      if (entity[0] === entity[1]) {
+        n_unknots++;
+      } else {
+        for (let j = 0; j < diagram.length; j++) {
+          diagram[j] = diagram[j].map(arc => arc === entity[1] ? entity[0] : arc);
+        }
+      }
+      diagram.splice(i, 1);
+    } else {
+      i++;
+    }
+  }
+
+  return {
+    unknots: n_unknots,
+    diagram: diagram
+  };
+}
+
+export function pd_first_free_id(diagram) {
+  assert(diagram instanceof PD);
+  let free_id = 1;
+  diagram.forEach(entity => {
+    entity.forEach(i => {
+      free_id = Math.max(free_id, i + 1);
+    });
+  });
+  return free_id;
+}
+
+export function pd_writhe_normalize(diagram) {
+  /* Given an oriented PD with no P's, returns a zero-writhe PD. */
+  assert(diagram instanceof PD);
+  
+  // Calculate writhes of components
+  let arc_comps = new Map; // arc_id -> component_id (a canonical arc id)
+  function arc_find(arc) {
+    while (arc_comps.has(arc)) {
+      arc = arc_comps.get(arc);
+    }
+    return arc;
+  }
+  function arc_join(arc1, arc2) {
+    arc1 = arc_find(arc1);
+    arc2 = arc_find(arc2);
+    if (arc1 !== arc2) {
+      arc_comps.set(arc2, arc1);
+    }
+  }
+  diagram.forEach(entity => {
+    if (entity.constructor === Xp || entity.constructor === Xm) {
+      arc_join(entity[0], entity[2]);
+      arc_join(entity[1], entity[3]);
+    } else {
+      throw new TypeError;
+    }
+  });
+  let writhes = new Map;
+  function update_writhe(arc, delta) {
+    arc = arc_find(arc);
+    if (writhes.has(arc)) {
+      writhes.set(arc, writhes.get(arc) + delta);
+    } else {
+      writhes.set(arc, delta);
+    }
+  }
+  diagram.forEach(entity => {
+    if (arc_find(entity[0]) === arc_find(entity[1])) {
+      if (entity.constructor === Xp) {
+        update_writhe(entity[0], 1);
+      } else {
+        update_writhe(entity[1], -1);
+      }
+    }
+  });
+
+  let free_id = pd_first_free_id(diagram);
+
+  let new_entities = [];
+  function maybe_insert_twists(entity, idx) {
+    let i = entity[idx];
+    if (!writhes.has(i))
+      return;
+    let wr = writhes.get(i);
+    writhes.delete(i);
+
+    while (wr > 0) {
+      wr--;
+      let j = free_id++;
+      let k = free_id++;
+      new_entities.push(Xm.make(j, k, k, i));
+      i = j;
+    }
+    while (wr < 0) {
+      wr++;
+      let j = free_id++;
+      let k = free_id++;
+      new_entities.push(Xp.make(k, k, i, j));
+      i = j;
+    }
+    entity[idx] = i;
+  }
+  diagram.forEach(entity => {
+    if (entity.constructor === Xp) {
+      maybe_insert_twists(entity, 1);
+      maybe_insert_twists(entity, 2);
+    } else {
+      maybe_insert_twists(entity, 2);
+      maybe_insert_twists(entity, 3);
+    }
+  });
+
+  return diagram.concat(new_entities);
+}
