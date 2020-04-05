@@ -66,10 +66,7 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
       tl = new TL(new TLTerm(Laurent.unit, [new TLPath(a, b)]));
     } else {
       let [a, b, c, d] = entity;
-      tl = new TL(new TLTerm(Laurent.t, [new TLPath(a, b),
-                                         new TLPath(c, d)]),
-                  new TLTerm(Laurent.tinv, [new TLPath(a, d),
-                                            new TLPath(b, c)]));
+      tl = mk_tl_X(entity[0], entity[1], entity[2], entity[3]);
     }
     bracket = bracket.mul(tl);
   }
@@ -125,30 +122,119 @@ define_invariant("jones_poly", async function (mt, diagram) {
 });
 
 
+function mk_tl_X(a,b,c,d) {
+  return TL.make(TLTerm.make(Laurent.t, [TLPath.make(a, b),
+                                         TLPath.make(c, d)]),
+                 TLTerm.make(Laurent.tinv, [TLPath.make(a, d),
+                                            TLPath.make(b, c)]));
+}
+
+
+let cabled_prototypes = {p: [], m: []};
+
+function mk_prototype_cabled_X(type, n) {
+  // For an oriented bundle of strands, pointing up, they are numbered sequentially from left to right.  type is "p" or "m" for Xp or Xm
+
+  if (cabled_prototypes[type][n]) {
+    return cabled_prototypes[type][n];
+  }
+
+  let free_id = 4*n+1;
+
+  let bracket = TL.unit;
+
+  let idxs = [];
+  for (let i = 0; i < n; i++) {
+    idxs.push(i+1);
+  }
+  for (let j = 0; j < n; j++) {
+    let d = type === "p" ? 4*n-j : 3*n+1+j;
+    let idxs2 = [];
+    for (let i = 0; i < n; i++) {
+      let a = idxs[i];
+      let b = i < n - 1 ? free_id++ : type === "p" ? 2*n-j : n+j+1;
+      let c = j === n - 1 ? 2*n+i+1 : free_id++;
+
+      bracket = bracket.mul(mk_tl_X(a, b, c, d));
+
+      d = b;
+      idxs2.push(c);
+    }
+    idxs = idxs2;
+  }
+
+  cabled_prototypes[type][n] = bracket;
+  return bracket;
+}
+
+function mk_cabled_X(type, n, a, b, c, d) {
+  let prototype = mk_prototype_cabled_X(type, n);
+
+  function remap(i) {
+    let s = Math.floor((i-1)/n);
+    let o = (i-1)%n;
+    let j = 0;
+    switch (s) {
+    case 0: j = a; break;
+    case 1: j = b; break;
+    case 2: j = c; break;
+    case 3: j = d; break;
+    }
+    return n*(j-1) + o + 1;
+  }
+
+  let bracket = prototype.map(term => {
+    return TLTerm.make(term.coeff,
+                       term.paths.map(path => TLPath.make(remap(path[0]), remap(path[1]))));
+  });
+  return bracket;
+}
+
 define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
   /* Computes the cabeled Jones polynomial from a KnotGraph (or an oriented
      PD). Returns a polynomial in T=t^2, or null for the empty diagram. */
-
+  assert(cables > 0);
   if (diagram instanceof KnotGraph) {
     diagram = diagram.get_pd(true);
   }
   assert(diagram instanceof PD);
 
-  let cabled = pd_form_cabling(diagram, cables);
-
-  let kb = await get_invariant('kauffman_bracket', cabled);
-  if (kb === null) {
+  if (diagram.length === 0) {
     return null;
   }
 
-  // The following polynomial is in T=t^2.
-  let jp = new Laurent();
-  for (let i = kb.length - 1; i >= 0; i--) {
-    let term = kb[i];
-    let new_exp = -term.exp/2;
-    assert(new_exp === Math.floor(new_exp));
-    jp.push(new LTerm(term.coeff, new_exp));
-  }
-  return jp;
+  diagram = pd_writhe_normalize(diagram);
+  let eliminated = pd_eliminate_paths(diagram);
+  diagram = eliminated.diagram;
+  let n_unknots = eliminated.unknots;
 
+  diagram = sort_pd_heuristic(diagram);
+
+  let bracket = TL.unit;
+  for (let i = 0; i < diagram.length; i++) {
+    await mt.next_turn();
+    let entity = diagram[i];
+    let br = mk_cabled_X(entity.constructor === Xp ? "p" : "m", cables, entity[0], entity[1], entity[2], entity[3]);
+    bracket = bracket.mul(br);
+  }
+
+  for (let i = 0; i < n_unknots * cables; i++) {
+    bracket = bracket.mul(TL.make(TLTerm.make(Laurent.unit, [TLPath.make(1,1)])));
+  }
+
+  if (bracket.length === 0) {
+    return Laurent.zero;
+  } else {
+    assert(bracket[0].paths.length === 0);
+    let kb = bracket[0].coeff.div_by_loop();
+    // The following polynomial is in T=t^2.
+    let jp = new Laurent();
+    for (let i = kb.length - 1; i >= 0; i--) {
+      let term = kb[i];
+      let new_exp = -term.exp/2;
+      assert(new_exp === Math.floor(new_exp));
+      jp.push(new LTerm(term.coeff, new_exp));
+    }
+    return jp;
+  }
 });
