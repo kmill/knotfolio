@@ -269,3 +269,21 @@ export function pd_form_cabling(diagram, cables) {
 
   return cabled;
 }
+
+export function pd_renumber(pd) {
+  assert(pd instanceof PD);
+
+  let remap = new Map();
+  let free_id = 0;
+  function get(i) {
+    if (remap.has(i)) {
+      return remap.get(i);
+    } else {
+      let j = free_id++;
+      remap.set(i, j);
+      return j;
+    }
+  }
+  
+  return pd.map(entity => entity.map(get));
+}

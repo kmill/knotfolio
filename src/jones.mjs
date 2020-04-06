@@ -2,7 +2,7 @@
 
 import {assert, remove_value} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
-import {PD, P, X, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id, pd_form_cabling} from "./pd.mjs";
+import {PD, P, X, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id, pd_form_cabling, pd_renumber} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
@@ -457,4 +457,105 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
     }
     return jp;
   }
+});
+
+
+define_invariant("cabled_jones_poly_statesum", async function (mt, diagram, cables) {
+  /* Computes the cabeled Jones polynomial from a KnotGraph (or an oriented
+     PD). Returns a polynomial in T=t^2, or null for the empty diagram. */
+  assert(cables > 0);
+  if (diagram instanceof KnotGraph) {
+    diagram = diagram.get_pd(true);
+  }
+  assert(diagram instanceof PD);
+
+  if (diagram.length === 0) {
+    return null;
+  }
+
+  let loop_polys = [Laurent.unit, TL.loop];
+  function get_loop(loops) {
+    while (loop_polys.length <= loops) {
+      let last = loop_polys[loop_polys.length - 1];
+      loop_polys.push(last.mul(loop_polys[1]));
+    }
+    return loop_polys[loops];
+  }
+
+  let eliminate = pd_eliminate_paths(diagram);
+  let unknots = eliminate.unknots;
+  let cdiagram = sort_pd_heuristic(pd_renumber(pd_form_cabling(eliminate.diagram, cables)));
+  let nentities = cdiagram.length;
+
+  let comps = []; // union-find structure for edge ids
+  cdiagram.forEach(entity => entity.forEach(i => comps[i] = i));
+  function lookup_comp(i) {
+    while (i !== comps[i]) {
+      i = comps[i];
+    }
+    return i;
+  }
+  //console.log(cdiagram.toString());
+  let ncomps = comps.length;
+  function join(i, j) {
+    //console.log("join(%s, %s)", i, j);
+    if (i !== j) {
+      ncomps--;
+      comps[i] = j;
+    }
+    //console.log("   now ncomps = %s", ncomps);
+  }
+  let offset = 0;
+  let poly = Laurent.zero;
+  function visit(eid) {
+    if (eid < nentities) {
+      let entity = cdiagram[eid];
+      let acomp = lookup_comp(entity[0]),
+          bcomp = lookup_comp(entity[1]),
+          ccomp = lookup_comp(entity[2]),
+          dcomp = lookup_comp(entity[3]);
+      let old_ncomps = ncomps;
+
+      // A state
+      //console.log("A");
+      offset += 1;
+      join(acomp, bcomp);
+      let ccomp2 = lookup_comp(ccomp);
+      join(ccomp2, lookup_comp(dcomp));
+      visit(eid + 1);
+      comps[ccomp2] = ccomp2;
+
+      // B state
+      //console.log("B");
+      ncomps = old_ncomps;
+      offset -= 2;
+      join(acomp, dcomp);
+      ccomp2 = lookup_comp(ccomp);
+      join(ccomp2, lookup_comp(bcomp));
+      visit(eid + 1);
+      comps[ccomp2] = ccomp;
+
+      // Restore state
+      //console.log("restore");
+      offset += 1;
+      ncomps = old_ncomps;
+      comps[acomp] = acomp;
+    } else {
+      let nloops = ncomps + unknots;
+      //console.log("state has offset %s and %s loops", offset, nloops);
+      poly = poly.add(get_loop(nloops - 1), 1, offset);
+    }
+  }
+  visit(0);
+  //console.log("%s %s", ncomps, offset);
+
+  // The following polynomial is in T=t^2.
+  let jp = new Laurent();
+  for (let i = poly.length - 1; i >= 0; i--) {
+    let term = poly[i];
+    let new_exp = -term.exp/2;
+    assert(new_exp === Math.floor(new_exp));
+    jp.push(new LTerm(term.coeff, new_exp));
+  }
+  return jp;
 });
