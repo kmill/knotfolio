@@ -208,7 +208,10 @@ export class Laurent {
     for (let i = 0; i < p2._coeffs.length; i++) {
       let exp = i + p2._offset;
       //console.log("step (%s, %s, %s)", p.toListString(), p2._coeffs[i], exp);
-      p = p.add(this, p2._coeffs[i], exp);
+      let c = p2._coeffs[i];
+      if (c !== 0) {
+        p = p.add(this, p2._coeffs[i], exp);
+      }
       //console.log("now p = %s", p.toListString());
     }
     return p;
