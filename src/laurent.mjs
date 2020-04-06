@@ -1,82 +1,48 @@
-import {assert, SimpleType} from "./util.mjs";
+import {assert, SimpleType, toString} from "./util.mjs";
 import {gcd} from "./integers.mjs";
 import {Poly} from "./poly.mjs";
 import Q from "./kq.mjs";
 
-// A Laurent polynomial is a Laurent list of LTerms.
+// A Laurent polynomial is a list of coefficients and an offset.
 
-export class LTerm {
-  constructor(coeff, exp) {
-    this.coeff = coeff;
-    this.exp = exp;
+export class Laurent {
+  constructor(offset, coeffs) {
+    this._offset = offset;
+    this._coeffs = coeffs;
   }
-  equal(term2) {
-    assert(term2 instanceof LTerm);
-    return this.coeff === term2.coeff && this.exp === term2.exp;
-  }
-  static make(coeff, exp) {
-    assert(arguments.length === 2);
-    return new this(coeff, exp);
-  }
-  toString() {
-    return "LTerm.make(" + this.coeff + ", " + this.exp + ")";
-  }
-}
 
-export class Laurent extends SimpleType {
   copy() {
-    return this.slice(); // ok since terms are immutable
+    return new Laurent(this._offset, this._coeffs); // ok since terms are immutable
   }
   is_zero() {
-    return this.length === 0;
+    return this._coeffs.length === 0;
   }
   normalize() {
     /* Destructively simplify the polynomial */
-    this.sort((t1, t2) => t1.exp - t2.exp);
-    let i = 0;
-    while (i < this.length) {
-      let t1 = this[i];
-      let sum = t1.coeff;
-      let j = i + 1;
-      while (j < this.length && this[j].exp === t1.exp) {
-        sum += this[j].coeff;
-        j++;
-      }
-      if (sum === 0) {
-        this.splice(i, j-i);
-      } else if (j > i + 1) {
-        this[i] = LTerm.make(sum, t1.exp);
-        if (j-i-1 > 0) {
-          this.splice(i+1, j-i-1);
-        }
-        i++;
-      } else {
-        i++;
-      }
+    let coeffs = this._coeffs;
+    while (coeffs.length > 0 && coeffs[coeffs.length - 1] === 0) {
+      coeffs.pop();
+    }
+    while (coeffs.length > 0 && coeffs[0] === 0) {
+      coeffs.shift();
+      this._offset++;
+    }
+    if (this._coeffs.length === 0) {
+      this._offset = 0;
     }
     return this;
   }
   toListString() {
     /* Outputs an [exponent; coefficient...] list. */
     this.normalize();
-    if (this.length === 0) {
+    if (this._coeffs.length === 0) {
       return "[0; 0]";
     }
-    let minexp = this[0].exp;
-    let coeffs = [];
-    this.forEach(term => {
-      coeffs[term.exp-minexp] = term.coeff;
-    });
-    for (let i = 0; i < coeffs.length; i++) {
-      if (coeffs[i] === void 0) {
-        coeffs[i] = 0;
-      }
-    }
-    return "[" + minexp + "; " + coeffs + "]";
+    return "[" + this._offset + "; " + this._coeffs + "]";
   }
   toMathematica(variable="t", exp_divisor=1) {
     this.normalize();
-    if (this.length === 0) {
+    if (this._coeffs.length === 0) {
       return "0";
     }
     let s = "";
@@ -89,24 +55,25 @@ export class Laurent extends SimpleType {
         return "^("+(exp*exp_divisor)+"/"+exp_divisor+")";
       }
     }
-    for (let i = this.length-1; i >= 0; i--) {
-      let term = this[i];
-      let exp = term.exp/exp_divisor;
-      if (term.coeff > 0) {
+    for (let i = this._coeffs.length-1; i >= 0; i--) {
+      let coeff = this._coeffs[i];
+      if (coeff === 0) continue;
+      let exp = (i + this._offset)/exp_divisor;
+      if (coeff > 0) {
         if (s.length !== 0) {
           s += " + ";
         }
-        if (term.coeff === 1 && exp === 0) {
+        if (coeff === 1 && exp === 0) {
           s += "1";
         } else {
-          if (term.coeff !== 1) {
-            s += term.coeff;
+          if (coeff !== 1) {
+            s += coeff;
           }
           if (exp !== 0) {
             s += variable + form_exp(exp);
           }
         }
-      } else if (term.coeff === -1) {
+      } else if (coeff === -1) {
         if (s.length === 0) {
           s += "-";
         } else {
@@ -119,9 +86,9 @@ export class Laurent extends SimpleType {
         }
       } else {
         if (s.length === 0) {
-          s += term.coeff;
+          s += coeff;
         } else {
-          s += " - " + (-term.coeff);
+          s += " - " + (-coeff);
         }
         if (exp !== 0) {
           s += variable + form_exp(exp);
@@ -133,7 +100,7 @@ export class Laurent extends SimpleType {
 
   toDOM(variable="t", exp_divisor=1) {
     this.normalize();
-    if (this.length === 0) {
+    if (this._coeffs.length === 0) {
       return "0";
     }
     let s = [];
@@ -156,25 +123,26 @@ export class Laurent extends SimpleType {
     function add_var() {
       s.push(Q.create("var", variable));
     }
-    for (let i = this.length-1; i >= 0; i--) {
-      let term = this[i];
-      let exp = term.exp/exp_divisor;
-      if (term.coeff > 0) {
+    for (let i = this._coeffs.length-1; i >= 0; i--) {
+      let coeff = this._coeffs[i];
+      if (coeff === 0) continue;
+      let exp = (i + this._offset)/exp_divisor;
+      if (coeff > 0) {
         if (s.length !== 0) {
           s.push(" + ");
         }
-        if (term.coeff === 1 && exp === 0) {
+        if (coeff === 1 && exp === 0) {
           s.push("1");
         } else {
-          if (term.coeff !== 1) {
-            s.push(''+term.coeff);
+          if (coeff !== 1) {
+            s.push(''+coeff);
           }
           if (exp !== 0) {
             add_var();
             form_exp(exp);
           }
         }
-      } else if (term.coeff === -1) {
+      } else if (coeff === -1) {
         if (s.length === 0) {
           s.push("\u2212");
         } else {
@@ -188,9 +156,9 @@ export class Laurent extends SimpleType {
         }
       } else {
         if (s.length === 0) {
-          s.push('' + term.coeff);
+          s.push('' + coeff);
         } else {
-          s.push(" \u2212 " + (-term.coeff));
+          s.push(" \u2212 " + (-coeff));
         }
         if (exp !== 0) {
           add_var();
@@ -207,43 +175,42 @@ export class Laurent extends SimpleType {
        polynomial. calculates this + c*p2*t^exp_offset. */
     assert(p2 instanceof Laurent);
     let p1 = this;
-    let p = Laurent.make();
-    let i1 = 0, i2 = 0;
-    while (i1 < p1.length && i2 < p2.length) {
-      let t1 = p1[i1], t2 = p2[i2];
-      if (t1.exp < t2.exp+exp_offset) {
-        p.push(t1);
-        i1++;
-      } else if (t1.exp > t2.exp+exp_offset) {
-        p.push(LTerm.make(c*t2.coeff, t2.exp+exp_offset));
-        i2++;
-      } else {
-        let sum = t1.coeff+c*t2.coeff;
-        if (sum !== 0) {
-          p.push(LTerm.make(sum, t1.exp));
-        }
-        i1++;
-        i2++;
-      }
+    if (p1._coeffs.length === 0) {
+      return p2.simple_mul(c, exp_offset);
     }
-    for (; i1 < p1.length; i1++) {
-      p.push(p1[i1]);
+    if (p2._coeffs.length === 0 || c === 0) {
+      return p1;
     }
-    for (; i2 < p2.length; i2++) {
-      let t2 = p2[i2];
-      p.push(LTerm.make(c*t2.coeff, t2.exp+exp_offset));
+    //console.log("%s.add(%s, %s, %s)", p1.toListString(), p2.toListString(), c, exp_offset);
+    let minexp = Math.min(p1._offset, p2._offset + exp_offset);
+    let maxexp = Math.max(p1._offset + p1._coeffs.length - 1, p2._offset + exp_offset + p2._coeffs.length - 1);
+
+    let coeffs = new Array(maxexp - minexp + 1).fill(0);
+
+    for (let i = 0; i < p1._coeffs.length; i++) {
+      let j = i + p1._offset - minexp;
+      coeffs[j] = p1._coeffs[i];
     }
-    return p;
+    for (let i = 0; i < p2._coeffs.length; i++) {
+      let j = i + p2._offset + exp_offset - minexp;
+      coeffs[j] += c * p2._coeffs[i];
+    }
+
+    return new Laurent(minexp, coeffs).normalize();
   }
 
   mul(p2) {
     /* Assumes this and p2 are simplified. Returns this*p2, simplified.
        Does the grade-school algorithm using each term of p2.*/
     assert(p2 instanceof Laurent);
-    let p = Laurent.make();
-    p2.forEach(t => {
-      p = p.add(this, t.coeff, t.exp);
-    });
+    //console.log("%s.mul(%s)", this.toListString(), p2.toListString());
+    let p = Laurent.zero;
+    for (let i = 0; i < p2._coeffs.length; i++) {
+      let exp = i + p2._offset;
+      //console.log("step (%s, %s, %s)", p.toListString(), p2._coeffs[i], exp);
+      p = p.add(this, p2._coeffs[i], exp);
+      //console.log("now p = %s", p.toListString());
+    }
     return p;
   }
   simple_mul(c=1, exp=0) {
@@ -251,12 +218,25 @@ export class Laurent extends SimpleType {
     assert(typeof c === "number" && typeof exp === "number");
     if (c === 0) {
       return Laurent.zero;
+    } else if (c === 1 && exp === 0) {
+      return this;
+    } else {
+      return new Laurent(this._offset + exp, this._coeffs.map(coeff => c * coeff));
     }
-    let p = Laurent.make();
-    this.forEach(t => {
-      p.push(LTerm.make(c*t.coeff, exp+t.exp));
-    });
-    return p;
+  }
+
+  equal(p2) {
+    assert(p2 instanceof Laurent);
+    let p1 = p2;
+    if (p1._offset !== p2._offset || p1._coeffs.length !== p2._coeffs.length) {
+      return false;
+    }
+    for (let i = 0; i < p1._coeffs.length; i++) {
+      if (p1._coeffs[i] !== p2._coeffs[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   negate() {
@@ -265,60 +245,21 @@ export class Laurent extends SimpleType {
 
   to_poly(preserve_degree=false) {
     /* Multiplies the Laurent polynomial so that the min degree is 0, returning a Poly. */
-    if (this.length === 0) {
-      return Poly.zero;
-    } else {
-      let minexp = this[0].exp;
-      if (preserve_degree) {
-        assert(minexp >= 0);
-        minexp = 0;
-      }
-      let coeffs = Poly.make();
-      this.forEach(term => {
-        coeffs[term.exp-minexp] = term.coeff;
-      });
-      for (let i = 0; i < coeffs.length; i++) {
-        if (coeffs[i] === void 0) {
-          coeffs[i] = 0;
-        }
-      }
-      return coeffs;
-    }
+    return Poly.make(...this._coeffs);
   }
 
   coeffs() {
-    if (this.length === 0) {
-      return [];
-    } else {
-      let minexp = this[0].exp;
-      let coeffs = [];
-      this.forEach(term => {
-        coeffs[term.exp-minexp] = term.coeff;
-      });
-      for (let i = 0; i < coeffs.length; i++) {
-        if (coeffs[i] === void 0) {
-          coeffs[i] = 0;
-        }
-      }
-      return coeffs;
-    }
+    return this._coeffs.slice();
   }
   static fromCoeffs(coeffs, offset=0) {
-    let p = Laurent.make();
-    for (let i = 0; i < coeffs.length; i++) {
-      if (coeffs[i] !== 0) {
-        p.push(LTerm.make(coeffs[i], i + offset));
-      }
-    }
-    return p;
+    return new Laurent(offset, coeffs.slice());
   }
 
   minexp() {
-    if (this.length === 0) {
-      return 0; // or is it -Infinity? (0 is practical.)
-    } else {
-      return this[0].exp;
-    }
+    return this._offset;
+  }
+  maxexp() {
+    return this._offset + this._coeffs.length - 1;
   }
 
   div_by_loop() {
@@ -332,25 +273,27 @@ export class Laurent extends SimpleType {
 
     let coeffs = this.coeffs();
     let minexp = this.minexp();
-    let q = Laurent.make();
+    let q = [];
     let state = [0,0,0,0];
     for (let i = 0; i < coeffs.length; i++) {
       let a = coeffs[i] - state[3];
       state.pop();
       state.unshift(a);
-      if (a !== 0) {
-        q.push(LTerm.make(-a, i + minexp + 2));
-      }
+      q.push(-a);
     }
     assert(state.every(x => x === 0));
-    return q;
+    return new Laurent(minexp + 2, q).normalize();
   }
 
   gcd(p2) {
     /* Compute the gcd of two Laurent polynomials with integer coefficients */
     assert(p2 instanceof Laurent);
 
-    return Laurent.fromCoeffs(this.to_poly().gcd(p2.to_poly()));
+    return Laurent.fromCoeffs([...this.to_poly().gcd(p2.to_poly())]);
+  }
+
+  toString() {
+    return "Laurent.fromCoeffs(" + toString(this._coeffs) + ", " + this.offset + ")";
   }
 
   // Making this a NumberSystem
@@ -366,11 +309,15 @@ export class Laurent extends SimpleType {
   static incl(v) {
     /* The natural inclusion of the base field. */
     assert(typeof v === "number");
-    return Laurent.make(LTerm.make(v, 0));
+    if (v === 0) {
+      return new Laurent(0, []);
+    } else {
+      return new Laurent(0, [v]);
+    }
   }
 }
 
-Laurent.zero = Laurent.make();
-Laurent.unit = Laurent.make(LTerm.make(1,0));
-Laurent.t = Laurent.make(LTerm.make(1,1));
-Laurent.tinv = Laurent.make(LTerm.make(1,-1));
+Laurent.zero = Laurent.incl(0);
+Laurent.unit = Laurent.incl(1);
+Laurent.t = Laurent.fromCoeffs([1],1);
+Laurent.tinv = Laurent.fromCoeffs([1],-1);

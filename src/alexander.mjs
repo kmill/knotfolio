@@ -1,7 +1,7 @@
 // Alexander polynomials
 
 import {assert, compare} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 import {Poly} from "./poly.mjs";
 import {det} from "./matrix.mjs";
 import {PD, P, Xp, Xm} from "./pd.mjs";
@@ -119,9 +119,9 @@ export function alexander_module(pres) {
       for (let n = 0; n < times; n++) {
         let term;
         if (exp > 0) {
-          term = Laurent.make(LTerm.make(1, ab));
+          term = Laurent.fromCoeffs([1], ab);
         } else {
-          term = Laurent.make(LTerm.make(-1, ab-1));
+          term = Laurent.fromCoeffs([-1], ab - 1);
         }
         matrix[i][j] = matrix[i][j].add(term);
         ab += exp;

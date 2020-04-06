@@ -1,7 +1,7 @@
 import {get_invariant, define_invariant} from "./invariants.mjs";
 import "./jones.mjs";
 import "./alexander.mjs";
-import {assert, equal} from "./util.mjs";
+import {assert, equal, toString} from "./util.mjs";
 import * as knotinfo from "./greenj-filled.mjs";
 import {PD,X,P,Xp,Xm} from "./pd.mjs";
 
@@ -19,6 +19,7 @@ define_invariant("identify_link", async function (mt, diagram, try_harder) {
   let jones_coeffss = jones_polys.map(jones_poly => {
     return jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [0];
   });
+  jones_coeffss.forEach(p => console.log(toString(p)));
   let jones_coeffss_rev = jones_coeffss.map(jones_coeffs => {
     return [-jones_coeffs.length + 2 - jones_coeffs[0]].concat(jones_coeffs.slice(1).reverse());
   });
