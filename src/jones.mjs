@@ -45,25 +45,103 @@ function sort_pd_heuristic(pd) {
   return sorted;
 }
 
+function len_intersection(slist1, slist2) {
+  // sorted lists
+  let i1 = 0, i2 = 0;
+  let len = 0;
+  while (i1 < slist1.length && i2 < slist2.length) {
+    if (slist1[i1] === slist2[i2]) {
+      len++;
+      i1++;
+      i2++;
+    } else if (slist1[i1] < slist2[i2]) {
+      i1++;
+    } else {
+      i2++;
+    }
+  }
+  return len;
+}
+function merge_frontiers(front1, front2) {
+  let i1 = 0, i2 = 0;
+  let merged = [];
+  while (i1 < front1.length && i2 < front2.length) {
+    if (front1[i1] === front2[i2]) {
+      i1++;
+      i2++;
+    } else if (front1[i1] < front2[i2]) {
+      merged.push(front1[i1++]);
+    } else {
+      merged.push(front2[i2++]);
+    }
+  }
+  while (i1 < front1.length) {
+    merged.push(front1[i1++]);
+  }
+  while (i2 < front2.length) {
+    merged.push(front2[i2++]);
+  }
+  return merged;
+}
+
+
 function plan_tl_mul(pd) {
   /* A more-advanced planner for the multiplication.  Returns a tree for the multiplication plan:
      tree = ["mul", tree, tree] | ["entity", entity]
   */
 
-  let entities = []; // a list of [frontier, tree] pairs
-  pd.forEach(entity => {
-    let frontier = [];
-    entity.forEach(i => frontier.push(i));
-    frontier.sort((i, j) => i - j);
-    for (let i = 0; i + 1 < frontier.length;) {
-      if (frontier[i] === frontier[i+1]) {
-        frontier.splice(i, 2);
-      } else {
-        i++;
+  assert(pd.length > 0);
+  if (pd.length === 1) {
+    return ["entity", pd[0]];
+  }
+
+  function mk_plan(s1, s2) {
+    // uses s1 and s2 as indices into pd as 'nucleation sites'
+    let ppd = pd.slice();
+    let s = [s1, s2],
+        frontier = [[], []],
+        sorted = [null, null];
+    s.sort((i,j) => j-i);
+    s.forEach((k,j) => {
+      let e = ppd[k];
+      sorted[j] = ["entity", e];
+      ppd.splice(k,1);
+      e.forEach(i => {
+        if (!remove_value(frontier[j], i)) {
+          frontier[j].push(i);
+        }
+      });
+    });
+    while (ppd.length > 0) {
+      let best_nfrontier = Infinity,
+          best_eid = null,
+          best_j = null;
+      for (let j = 0; j < 2; j++) {
+        ppd.forEach((entity, eid) => {
+          let nfrontier = frontier[j].length + entity.length;
+          entity.forEach(i => {
+            if (frontier[j].indexOf(i) !== -1) {
+              nfrontier -= 2;
+            }
+          });
+          if (nfrontier < best_nfrontier) {
+            best_nfrontier = nfrontier;
+            best_eid = eid;
+            best_j = j;
+          }
+        });
       }
+      let entity = ppd[best_eid];
+      ppd.splice(best_eid, 1);
+      sorted[best_j] = ["mul", sorted[best_j], ["entity", entity]];
+      entity.forEach(i => {
+        if (!remove_value(frontier[best_j], i)) {
+          frontier.push(i);
+        }
+      });
     }
-    entities.push([frontier, ["entity", entity]]);
-  });
+    return ["mul", sorted[0], sorted[1]];
+  }
 
   let costs = [];
   {
@@ -81,44 +159,60 @@ function plan_tl_mul(pd) {
     return costs[len];
   }
 
-  function len_intersection(slist1, slist2) {
-    // sorted lists
-    let i1 = 0, i2 = 0;
-    let len = 0;
-    while (i1 < slist1.length && i2 < slist2.length) {
-      if (slist1[i1] === slist2[i2]) {
-        len++;
-        i1++;
-        i2++;
-      } else if (slist1[i1] < slist2[i2]) {
-        i1++;
-      } else {
-        i2++;
+  function estimate_plan_cost(plan) {
+    if (plan[0] === "mul") {
+      let c1 = estimate_plan_cost(plan[1]),
+          c2 = estimate_plan_cost(plan[2]);
+      return [merge_frontiers(c1[0], c2[0]),
+              get_cost(c1[0].length) * get_cost(c2[0].length) + c1[1] + c2[1]];
+    } else if (plan[0] === "entity") {
+      let entity = plan[1];
+      let frontier = [];
+      entity.forEach(i => frontier.push(i));
+      frontier.sort((i, j) => i - j);
+      for (let i = 0; i + 1 < frontier.length;) {
+        if (frontier[i] === frontier[i+1]) {
+          frontier.splice(i, 2);
+        } else {
+          i++;
+        }
+      }
+      return [frontier, frontier.length === 2 ? 1 : 2];
+    } else return assert(false);
+  }
+
+  let best_plan = null,
+      best_plan_cost = Infinity;
+  for (let i = 0; i + 1 < pd.length; i++) {
+    for (let j = i + 1; j < pd.length; j++) {
+      let plan = mk_plan(i, j);
+      let cost = estimate_plan_cost(plan)[1];
+      if (cost < best_plan_cost) {
+        best_plan = plan;
+        best_plan_cost = cost;
       }
     }
-    return len;
   }
-  function merge_frontiers(front1, front2) {
-    let i1 = 0, i2 = 0;
-    let merged = [];
-    while (i1 < front1.length && i2 < front2.length) {
-      if (front1[i1] === front2[i2]) {
-        i1++;
-        i2++;
-      } else if (front1[i1] < front2[i2]) {
-        merged.push(front1[i1++]);
+  console.log("best cost = " + best_plan_cost);
+  console.log(best_plan);
+  return best_plan;
+
+  let entities = []; // a list of [frontier, tree] pairs
+  pd.forEach(entity => {
+    let frontier = [];
+    entity.forEach(i => frontier.push(i));
+    frontier.sort((i, j) => i - j);
+    for (let i = 0; i + 1 < frontier.length;) {
+      if (frontier[i] === frontier[i+1]) {
+        frontier.splice(i, 2);
       } else {
-        merged.push(front2[i2++]);
+        i++;
       }
     }
-    while (i1 < front1.length) {
-      merged.push(front1[i1++]);
-    }
-    while (i2 < front2.length) {
-      merged.push(front2[i2++]);
-    }
-    return merged;
-  }
+    entities.push([frontier, ["entity", entity]]);
+  });
+
+
 
   while (entities.length > 1) {
     let best_i = 0, best_j = 1, best_cost = Infinity;
@@ -323,14 +417,14 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
       assert(false);
     }
   }
-  //mk_prog(plan_tl_mul(cdiagram));
-  sort_pd_heuristic(cdiagram).forEach(ent => {
-    program.push(ent, "mul");
-  });
+  mk_prog(plan_tl_mul(cdiagram));
+  // sort_pd_heuristic(cdiagram).forEach(ent => {
+  //   program.push(ent, "mul");
+  // });
   console.log("program: " + program);
 
   let stack = [];
-  stack.push(TL.unit);
+  //stack.push(TL.unit);
   for (let i = 0; i < program.length; i++) {
     //await mt.next_turn();
     if (program[i] === "mul") {
