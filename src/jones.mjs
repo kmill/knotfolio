@@ -45,6 +45,113 @@ function sort_pd_heuristic(pd) {
   return sorted;
 }
 
+function plan_tl_mul(pd) {
+  /* A more-advanced planner for the multiplication.  Returns a tree for the multiplication plan:
+     tree = ["mul", tree, tree] | ["entity", entity]
+  */
+
+  let entities = []; // a list of [frontier, tree] pairs
+  pd.forEach(entity => {
+    let frontier = [];
+    entity.forEach(i => frontier.push(i));
+    frontier.sort((i, j) => i - j);
+    for (let i = 0; i + 1 < frontier.length;) {
+      if (frontier[i] === frontier[i+1]) {
+        frontier.splice(i, 2);
+      } else {
+        i++;
+      }
+    }
+    entities.push([frontier, ["entity", entity]]);
+  });
+
+  let costs = [];
+  {
+    let c = 1;
+    for (let i = 2; i < 50; i += 2) {
+      c *= i - 1;
+      costs[i] = i*c;
+    }
+  }
+  function get_cost(len) {
+    len = ((0|len)>>1)<<1;
+    if (len > costs.length) {
+      len = costs.length;
+    }
+    return costs[len];
+  }
+
+  function len_intersection(slist1, slist2) {
+    // sorted lists
+    let i1 = 0, i2 = 0;
+    let len = 0;
+    while (i1 < slist1.length && i2 < slist2.length) {
+      if (slist1[i1] === slist2[i2]) {
+        len++;
+        i1++;
+        i2++;
+      } else if (slist1[i1] < slist2[i2]) {
+        i1++;
+      } else {
+        i2++;
+      }
+    }
+    return len;
+  }
+  function merge_frontiers(front1, front2) {
+    let i1 = 0, i2 = 0;
+    let merged = [];
+    while (i1 < front1.length && i2 < front2.length) {
+      if (front1[i1] === front2[i2]) {
+        i1++;
+        i2++;
+      } else if (front1[i1] < front2[i2]) {
+        merged.push(front1[i1++]);
+      } else {
+        merged.push(front2[i2++]);
+      }
+    }
+    while (i1 < front1.length) {
+      merged.push(front1[i1++]);
+    }
+    while (i2 < front2.length) {
+      merged.push(front2[i2++]);
+    }
+    return merged;
+  }
+
+  while (entities.length > 1) {
+    let best_i = 0, best_j = 1, best_cost = Infinity;
+    for (let i = 0; i + 1 < entities.length; i++) {
+      for (let j = i + 1; j < entities.length; j++) {
+        let cost = 0;
+        for (let k = 0; k < entities.length; k++) {
+          if (k !== i && k !== j) {
+            cost += get_cost(entities[k][0].length);
+          }
+        }
+        let ifront = entities[i][0],
+            jfront = entities[j][0];
+        cost += get_cost(ifront.length + jfront.length - 2 * len_intersection(ifront, jfront));
+        if (cost < best_cost) {
+          best_i = i;
+          best_j = j;
+          best_cost = cost;
+        }
+      }
+    }
+
+    let ient = entities[best_i],
+        jent = entities[best_j];
+    entities.splice(best_j, 1);
+    entities.splice(best_i, 1);
+    entities.push([merge_frontiers(ient[0], jent[0]),
+                   ["mul", ient[1], jent[1]]]);
+  }
+  assert(entities.length === 1);
+  return entities[0][1];
+}
+
 define_invariant("kauffman_bracket", async function (mt, pd) {
   if (!(pd instanceof PD)) {
     return await get_invariant("kauffman_bracket", pd.get_pd());
@@ -65,7 +172,6 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
       let [a, b] = entity;
       tl = new TL(new TLTerm(Laurent.unit, [new TLPath(a, b)]));
     } else {
-      let [a, b, c, d] = entity;
       tl = mk_tl_X(entity[0], entity[1], entity[2], entity[3]);
     }
     bracket = bracket.mul(tl);
@@ -203,24 +309,44 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
     return null;
   }
 
-  diagram = pd_writhe_normalize(diagram);
-  let eliminated = pd_eliminate_paths(diagram);
-  diagram = eliminated.diagram;
-  let n_unknots = eliminated.unknots;
+  let cdiagram = pd_form_cabling(diagram, cables);
 
-  diagram = sort_pd_heuristic(diagram);
-
-  let bracket = TL.unit;
-  for (let i = 0; i < diagram.length; i++) {
-    await mt.next_turn();
-    let entity = diagram[i];
-    let br = mk_cabled_X(entity.constructor === Xp ? "p" : "m", cables, entity[0], entity[1], entity[2], entity[3]);
-    bracket = bracket.mul(br);
+  let program = [];
+  function mk_prog(plan) {
+    if (plan[0] === "mul") {
+      mk_prog(plan[1]);
+      mk_prog(plan[2]);
+      program.push("mul");
+    } else if (plan[0] === "entity") {
+      program.push(plan[1]);
+    } else {
+      assert(false);
+    }
   }
+  //mk_prog(plan_tl_mul(cdiagram));
+  sort_pd_heuristic(cdiagram).forEach(ent => {
+    program.push(ent, "mul");
+  });
+  console.log("program: " + program);
 
-  for (let i = 0; i < n_unknots * cables; i++) {
-    bracket = bracket.mul(TL.make(TLTerm.make(Laurent.unit, [TLPath.make(1,1)])));
+  let stack = [];
+  stack.push(TL.unit);
+  for (let i = 0; i < program.length; i++) {
+    //await mt.next_turn();
+    if (program[i] === "mul") {
+      let e2 = stack.pop();
+      let e1 = stack.pop();
+      stack.push(e1.mul(e2));
+    } else if (program[i].length === 2) {
+      let [a, b] = program[i];
+      stack.push(TL.make(TLTerm.make(Laurent.unit, [TLPath.make(a, b)])));
+    } else if (program[i].length === 4) {
+      let [a, b, c, d] = program[i];
+      stack.push(mk_tl_X(a, b, c, d));
+    } else assert(false);
   }
+  assert(stack.length === 1);
+  let bracket = stack.pop().normalize();
 
   if (bracket.length === 0) {
     return Laurent.zero;
