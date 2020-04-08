@@ -4,7 +4,7 @@ import {Laurent} from "./laurent.mjs";
 import {get_invariant} from "./invariants.mjs";
 import "./jones.mjs";
 import "./alexander.mjs";
-import * as knotinfo from "./greenj.mjs";
+import * as knotinfo from "./greenj-filled.mjs";
 
 import * as fs from "fs";
 
@@ -32,17 +32,18 @@ export async function compute() {
       }
     });
 
-    let jones = [];
-    let cables = 2;
+    let jones = knot.jones || [];
+    let cables = 3;
     if (pd.length <= 4) cables = 3;
-    for (let i = 1; i <= cables; i++) {
+    for (let i = jones.length + 1; i <= cables; i++) {
       let poly = await get_invariant("cabled_jones_poly", pd, i);
       jones.push(poly ? [poly.minexp()].concat(poly.coeffs()) : [0]);
     }
     knot.jones = jones;
 
-    let alex = (await get_invariant('alexander_poly', pd)).coeffs();
-    knot.alex = alex;
+    if (!knot.alex) {
+      knot.alex = (await get_invariant('alexander_poly', pd)).coeffs();
+    }
   }
 
   fs.writeFileSync("greenj-filled.json", JSON.stringify(knotinfo.data));
