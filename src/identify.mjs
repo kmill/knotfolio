@@ -40,59 +40,29 @@ define_invariant("identify_link", async function (mt, diagram, try_harder) {
       }
     }
     let n_jones = Math.min(jones_coeffss.length, o.jones.length);
+    let jones_ok = true, rev_jones_ok = true;
     for (let i = 0; i < n_jones; i++) {
-      if (!equal(jones_coeffss[i], o.jones[i]) && !equal(jones_coeffss_rev[i], o.jones[i])) {
+      if (jones_ok && !equal(jones_coeffss[i], o.jones[i])) {
+        jones_ok = false;
+      }
+      if (rev_jones_ok && !equal(jones_coeffss_rev[i], o.jones[i])) {
+        rev_jones_ok = false;
+      }
+      if (!jones_ok && !rev_jones_ok) {
         return false;
       }
     }
     return true;
   });
 
-  if (try_harder && options.length > 1) {
-    let new_options = [];
-    for (let oi = 0; oi < options.length; oi++) {
-      let knot = options[oi];
-      let pd = PD.make();
-      knot.pd.forEach(entity => {
-        if (entity.length === 2) {
-          pd.push(P.make(...entity));
-        } else if (entity.length === 4) {
-          // in the KnotInfo/LinkInfo database, each entity is secretly
-          // Xp or Xm, and the indices for (_,b,_,c) determine the
-          // orientation
-          let [a,b,c,d] = entity;
-          let fwdd = (b-d) === 1 || (b-d) < -1;
-          if (fwdd) {
-            pd.push(Xp.make(a,b,c,d));
-          } else {
-            pd.push(Xm.make(a,b,c,d));
-          }
-        } else {
-          throw new Error("bad pd");
-        }
-      });
-      let jones = knot.jones;
-      for (let i = 1+jones.length; i <= top_jones_poly; i++) {
-        let poly = await get_invariant("cabled_jones_poly", pd, i);
-        jones.push(poly ? [poly.minexp()].concat(poly.coeffs()) : [0]);
-      }
-      let n_jones = Math.min(jones_coeffss.length, jones.length);
-      is_ok: {
-        for (let i = 0; i < n_jones; i++) {
-          if (!equal(jones_coeffss[i], jones[i]) && !equal(jones_coeffss_rev[i], jones[i])) {
-            break is_ok;
-          }
-        }
-        new_options.push(knot);
-      }
-    }
-    options = new_options;
-  }
-
   let names = options.map(o => {
     let obj = {name: o.name};
     if (o.url) {
-      obj.url = o.url;
+      if (o.url.startsWith("GreenJ/")) {
+        obj.url = 'https://www.math.toronto.edu/drorbn/Students/' + o.url;
+      } else {
+        obj.url = o.url;
+      }
     }
     return obj;
   });
