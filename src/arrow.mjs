@@ -72,7 +72,6 @@ define_invariant("arrow_bracket", async function (mt, pd) {
   }
 
   pd = sort_pd_heuristic(pd);
-  console.log("plan " + pd);
 
   let bracket = ATL.unit;
 
@@ -99,12 +98,8 @@ define_invariant("arrow_bracket", async function (mt, pd) {
       assert(false);
       throw new Error("Unexpected entity type");
     }
-    console.log("bracket = " + bracket);
-    console.log("atl = " + atl);
     bracket = bracket.mul(atl);
   }
-
-  console.log("bracket " + bracket);
 
   let result = MLaurent.zero;
   bracket.forEach(term => {

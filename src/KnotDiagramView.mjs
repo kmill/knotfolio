@@ -570,9 +570,6 @@ export class KnotDiagramView {
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
         let e = poly.toExpr(variable, exp_divisor);
-        console.log(''+poly);
-        console.log("poly1 " + poly.toMathematica(variable, exp_divisor));
-        console.log("poly2 " + e);
         function show_poly() {
           div.empty();
           switch (default_laurent_type) {
@@ -606,7 +603,6 @@ export class KnotDiagramView {
                             expr.times(pair[0].toExpr(variables, exp_divisor),
                                        pair[1].toExpr(variables)));
         });
-        console.log("as expr = " + split.toMathematica());
         function show_poly() {
           div.empty();
           switch (default_laurent_type) {

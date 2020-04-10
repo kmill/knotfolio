@@ -49,7 +49,6 @@ export class MLaurent extends SimpleType {
     if (exp === null) {
       exp = empty_list;
     }
-    //console.log(["(", this, ").add(", p2, ", ", c, ", ", toString(exp || []), ")"].join(""));
     if (c === 0) {
       return this;
     }
@@ -57,8 +56,6 @@ export class MLaurent extends SimpleType {
         i1 = 0, i2 = 0,
         result = new MLaurent();
     function copy_in(p, i, coeff, exp) {
-      //console.log("copy_in(" + p + ", " + i + ", " + coeff + ", " + toString(exp) + ")");
-      //console.log("old result = " + result);
       if (coeff !== 0) {
         let np = p[i];
         let n = Math.max(np, exp.length);
@@ -75,13 +72,10 @@ export class MLaurent extends SimpleType {
         }
         result[nindex] = n;
       }
-      //console.log("new result = " + result);
       return 2 + p[i];
     }
     while (i1 < p1.length && i2 < p2.length) {
-      //console.log("[i1, i2] = " + toString([i1, i2]));
       let comp = lex_compare_exps(p1, i1, p2, i2, exp);
-      //console.log("  comp = " + comp);
       if (comp === 0) {
         i1 += copy_in(p1, i1, p1[i1+1] + c*p2[i2+1], empty_list);
         i2 += 2 + p2[i2];
@@ -92,11 +86,9 @@ export class MLaurent extends SimpleType {
       }
     }
     while (i1 < p1.length) {
-      //console.log("i1 = " + i1);
       i1 += copy_in(p1, i1, p1[i1+1], empty_list);
     }
     while (i2 < p2.length) {
-      //console.log("i2 = " + i2);
       i2 += copy_in(p2, i2, c*p2[i2+1], exp);
     }
     return result;
@@ -106,7 +98,6 @@ export class MLaurent extends SimpleType {
     assert(p2 instanceof MLaurent);
     let p1 = this,
         result = MLaurent.zero;
-    console.log("mul of " + p1 + " and " + p2);
     for (let i2 = 0; i2 < p2.length; i2 += 2 + p2[i2]) {
       result = result.add(p1, p2[i2+1], p2.slice(i2+2, i2+2+p2[i2]));
     }
@@ -121,7 +112,6 @@ export class MLaurent extends SimpleType {
   }
 
   toExpr(variables=null, exp_divisor=1) {
-    console.log(expr);
     let e = expr.make_const(0);
     for (let term of this.terms()) {
       let eterm = expr.make_const(term.coeff);
@@ -225,17 +215,13 @@ export class MLaurent extends SimpleType {
       while (expB[expB.length - 1] === 0) {
         expB.pop();
       }
-      console.log("exp = " + exp);
-      console.log("coeff = " + term.coeff + "; expA = " + toString(expA) + "; expB = " + toString(expB));
       let polyA = MLaurent.make(expA.length, term.coeff, ...expA),
           polyB = MLaurent.make(expB.length, 1, ...expB);
       // locate a split with expB as the second part.
-      console.log("split = " + toString(split));
       foundit: {
         for (let i = 0; i < split.length; i++) {
           let second = split[i][1];
           let c = lexcompare(expB, second);
-          console.log("[i,c] = " + toString([i,c]));
           if (c < 0) {
             split.splice(i, 0, [polyA, polyB]);
             break foundit;
@@ -246,7 +232,6 @@ export class MLaurent extends SimpleType {
         }
         split.push([polyA, polyB]);
       }
-      console.log("now split = " + toString(split));
     }
     return split;
   }

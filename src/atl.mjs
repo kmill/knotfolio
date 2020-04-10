@@ -88,10 +88,7 @@ export class ATerm {
     while (i < paths.length) {
       let p1 = paths[i];
       if (p1.a === p1.b) { // self-loop
-        console.log("loop " + p1);
-        console.log("coeff0 = " + coeff.toMathematica());
         coeff = coeff.mul(loopVal(p1.n/2));
-        console.log("coeff1 = " + coeff.toMathematica());
         paths.splice(i, 1);
         continue main_loop;
       }
@@ -138,7 +135,6 @@ export class ATL extends SimpleType {
   normalize() {
     /* In-place normalization of the ATL. */
     this.forEach(term => term.normalize());
-    console.log("prenorm = " + this);
     this.sort((term1, term2) => compare(term1.paths, term2.paths));
 
     let i = 0;
@@ -175,7 +171,6 @@ export class ATL extends SimpleType {
                                term1.paths.concat(term2.paths)));
       });
     });
-    console.log(" premul = " + result);
     return result.normalize();
   }
 }

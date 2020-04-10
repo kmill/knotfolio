@@ -17,15 +17,42 @@ define_invariant("identify_link", async function (mt, diagram, try_harder) {
     jones_polys.push(await get_invariant("cabled_jones_poly", diagram, i));
   }
   let jones_coeffss = jones_polys.map(jones_poly => {
-    return jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [0];
+    let jcoeffs = jones_poly.coeffs();
+    let coeffs = [];
+    for (let i = 0; i < jcoeffs.length; i += 2) {
+      coeffs.push(jcoeffs[i]);
+    }
+    coeffs.reverse();
+    return jones_poly ? [-jones_poly.maxexp()/2].concat(coeffs) : [0];
   });
   jones_coeffss.forEach(p => console.log(toString(p)));
   let jones_coeffss_rev = jones_coeffss.map(jones_coeffs => {
     return [-jones_coeffs.length + 2 - jones_coeffs[0]].concat(jones_coeffs.slice(1).reverse());
   });
+  
+  let top_arrow_poly = 1 + +try_harder;
+  let arrow_polys = [];
+  for (let i = 1; i <= top_arrow_poly; i++) {
+    arrow_polys.push(await get_invariant("cabled_arrow_poly", diagram, i));
+  }
+  let arrow_coeffss = arrow_polys.map(poly => Array.from(poly));
+  let arrow_coeffss_rev = arrow_polys.map(poly => {
+    let coeffs = [];
+    for (let term of poly.terms()) {
+      if (term.exps.length === 0) {
+        coeffs.push(0, term.coeff);
+      } else {
+        coeffs.push(term.exps.length, term.coeff, -term.exps[0], ...term.exps.slice(1));
+      }
+    }
+    return coeffs;
+  });
+
   console.log(max_crossing);
   console.log(alex_poly);
   console.log(jones_coeffss);
+  console.log(arrow_coeffss);
+  console.log(arrow_coeffss_rev);
 
   let options = knotinfo.data.filter(o => {
     if (o.crossing_number > max_crossing) {
@@ -52,6 +79,21 @@ define_invariant("identify_link", async function (mt, diagram, try_harder) {
         return false;
       }
     }
+
+    let n_arrows = Math.min(arrow_coeffss.length, o.arrow.length);
+    let arrow_ok = true, rev_arrow_ok = true;
+    for (let i = 0; i < n_arrows; i++) {
+      if (arrow_ok && !equal(arrow_coeffss[i], o.arrow[i])) {
+        arrow_ok = false;
+      }
+      if (rev_arrow_ok && !equal(arrow_coeffss_rev[i], o.arrow[i])) {
+        rev_arrow_ok = false;
+      }
+      if (!arrow_ok && !rev_arrow_ok) {
+        return false;
+      }
+    }
+
     return true;
   });
 

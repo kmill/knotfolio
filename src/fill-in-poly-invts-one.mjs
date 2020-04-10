@@ -3,6 +3,7 @@ import {PD,X,P,Xp,Xm} from "./pd.mjs";
 import {Laurent} from "./laurent.mjs";
 import {get_invariant} from "./invariants.mjs";
 import "./jones.mjs";
+import "./arrow.mjs";
 import "./alexander.mjs";
 import * as knotinfo from "./greenj-filled.mjs";
 
@@ -35,14 +36,25 @@ export async function compute(name) {
       }
     });
 
-    let jones = knot.jones || [];
-    let cables = 3;
-    if (pd.length <= 4) cables = 3;
-    for (let i = jones.length + 1; i <= cables; i++) {
-      let poly = await get_invariant("cabled_jones_poly", pd, i);
-      jones.push(poly ? [poly.minexp()].concat(poly.coeffs()) : [0]);
+    {
+      let jones = knot.jones || [];
+      let cables = 3;
+      for (let i = jones.length + 1; i <= cables; i++) {
+        let poly = await get_invariant("cabled_jones_poly", pd, i);
+        jones.push(poly ? [poly.minexp()].concat(poly.coeffs()) : [0]);
+      }
+      knot.jones = jones;
     }
-    knot.jones = jones;
+
+    {
+      let arrow = knot.arrow || [];
+      let cables = 1;
+      for (let i = arrow.length + 1; i <= cables; i++) {
+        let poly = await get_invariant("cabled_arrow_poly", pd, i);
+        arrow.push(Array.from(poly));
+      }
+      knot.arrow = arrow;
+    }
 
     if (!knot.alex) {
       knot.alex = (await get_invariant('alexander_poly', pd)).coeffs();
