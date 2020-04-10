@@ -40,9 +40,9 @@ define_invariant("identify_link", async function (mt, diagram, try_harder) {
     let coeffs = [];
     for (let term of poly.terms()) {
       if (term.exps.length === 0) {
-        coeffs.push(0, term.coeff);
+        coeffs.unshift(0, term.coeff);
       } else {
-        coeffs.push(term.exps.length, term.coeff, -term.exps[0], ...term.exps.slice(1));
+        coeffs.unshift(term.exps.length, term.coeff, -term.exps[0], ...term.exps.slice(1));
       }
     }
     return coeffs;

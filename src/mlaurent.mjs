@@ -112,6 +112,11 @@ export class MLaurent extends SimpleType {
   }
 
   toExpr(variables=null, exp_divisor=1) {
+    if (variables === null) {
+      variables = function (i) {
+        return "x" + i;
+      };
+    }
     let e = expr.make_const(0);
     for (let term of this.terms()) {
       let eterm = expr.make_const(term.coeff);
@@ -121,72 +126,6 @@ export class MLaurent extends SimpleType {
       e = expr.plus(e, eterm);
     }
     return e;
-  }
-
-  toMathematica(variables=null, exp_divisor=1) {
-    if (variables === null) {
-      variables = function (i) {
-        return "x" + i;
-      };
-    }
-    if (this.is_zero()) {
-      return "0";
-    }
-    let s = "";
-    function form_exp(exp) {
-      if (exp === 1) {
-        return "";
-      } else if (Math.floor(exp) === exp) {
-        return "^"+exp;
-      } else {
-        return "^("+(exp*exp_divisor)+"/"+exp_divisor+")";
-      }
-    }
-    function form_monomial(s, exps) {
-      exps.forEach((exp, i) => {
-        if (exp !== 0) {
-          if (s.length > 0) {
-            s += " ";
-          }
-          s += variables(i) + form_exp(exp);
-        }
-      });
-      return s;
-    }
-    for (let term of this.terms()) {
-      let coeff = term.coeff;
-      let hasexp = term.exps.length > 0;
-      if (coeff > 0) {
-        if (s.length !== 0) {
-          s += " + ";
-        }
-        if (coeff === 1 && !hasexp) {
-          s += "1";
-        } else {
-          s += form_monomial(coeff === 1 ? '' : ''+coeff, term.exps);
-        }
-      } else if (coeff === -1) {
-        if (s.length === 0) {
-          s += "-";
-        } else {
-          s += " - ";
-        }
-        if (!hasexp) {
-          s += "1";
-        } else {
-          s += form_monomial('', term.exps);
-        }
-      } else {
-        let p = '';
-        if (s.length === 0) {
-          p += coeff;
-        } else {
-          p += " - " + (-coeff);
-        }
-        s += form_monomial(p, term.exps);
-      }
-    }
-    return s;
   }
 
   coeffs(n=1) {
