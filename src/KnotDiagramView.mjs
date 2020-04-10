@@ -5,8 +5,10 @@ import {CROSSING_CHANGE_RADIUS, DIAGRAM_LINE_WIDTH, CROSSING_GAP, palette} from 
 import {KnotRasterView} from "./KnotRasterView.mjs";
 import {get_invariant} from "./invariants.mjs";
 import {Laurent} from "./laurent.mjs";
+import {arrow_varnames} from "./atl.mjs";
 import Q from "./kq.mjs";
 import {signature} from "./matrix.mjs";
+import * as expr from "./expr.mjs";
 
 let global_tool_state = {
   tool: "crossing-change"
@@ -567,15 +569,19 @@ export class KnotDiagramView {
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
+        let e = poly.toExpr(variable, exp_divisor);
+        console.log(''+poly);
+        console.log("poly1 " + poly.toMathematica(variable, exp_divisor));
+        console.log("poly2 " + e);
         function show_poly() {
           div.empty();
           switch (default_laurent_type) {
           case "DOM":
-            div.append(poly.toDOM(variable, exp_divisor));
+            div.append(e.toDOM());
             break;
           case "Mathematica":
           default:
-            div.append(poly.toMathematica(variable, exp_divisor));
+            div.append(e.toMathematica());
             break;
           }
         }
@@ -592,11 +598,52 @@ export class KnotDiagramView {
       });
     }
 
+    function mlaurent_invariant(promise, div, variables, exp_divisor=1) {
+      promise.then(poly => {
+        let split = expr.make_const(0);
+        poly.coeffs().forEach(pair => {
+          split = expr.plus(split,
+                            expr.times(pair[0].toExpr(variables, exp_divisor),
+                                       pair[1].toExpr(variables)));
+        });
+        console.log("as expr = " + split.toMathematica());
+        function show_poly() {
+          div.empty();
+          switch (default_laurent_type) {
+          case "DOM":
+            div.append(split.toDOM());
+            break;
+          case "Mathematica":
+          default:
+            div.append(split.toMathematica());
+            break;
+          }
+        }
+        if (poly) {
+          show_poly();
+          laurent_handlers.push(show_poly);
+        } else {
+          div.append("n/a");
+        }
+      }, err => {
+        console.log(err);
+        div.addClass("calc-error");
+        div.append('Error: '+err);
+      });
+    }
+
+
     var $kb_div;
     $idiv.append(Q.create("p")
                  .append("Kauffman bracket:")
                  .append($kb_div = Q.create("div")));
     laurent_invariant(get_invariant("kauffman_bracket", this.diagram), $kb_div, "A");
+
+    var $arrow_div;
+    $idiv.append(Q.create("p")
+                 .append("Arrow bracket:")
+                 .append($arrow_div = Q.create("div")));
+    mlaurent_invariant(get_invariant("arrow_bracket", this.diagram), $arrow_div, arrow_varnames);
 
     $idiv.append(Q.create("h2").append("Identification"));
     let $ident = Q.create("p").appendTo($idiv);
@@ -681,7 +728,7 @@ export class KnotDiagramView {
         let i = next_cjones++;
         let $cj = Q.create("span");
         $cjones.append(Q.create("div").append("V", Q.create("sub", i), " = ", $cj));
-        laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", 2);
+        laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", -4);
       };
       do_next_cjones();
       do_next_cjones();
@@ -693,6 +740,35 @@ export class KnotDiagramView {
       $nextJones.on("click", e => {
         do_next_cjones();
       });
+
+      $idiv.append(Q.create("p")
+                   .append("Cabled arrow polynomials:"));
+
+      let $carrow = Q.create("div").appendTo($idiv);
+      let next_carrow = 1;
+      const do_next_carrow = () => {
+        let i = next_carrow++;
+        let $cj = Q.create("span");
+        $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
+        function arrow_varnames_t(i) {
+          if (i === 0) {
+            return "t";
+          } else {
+            return "K" + i;
+          }
+        }
+        mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
+      };
+      do_next_carrow();
+      let $nextCArrow = Q.create("input")
+          .prop("type", "button")
+          .value("Next")
+          .prop("title", "Compute next cabled arrow polynomial")
+          .appendTo($idiv);
+      $nextCArrow.on("click", e => {
+        do_next_carrow();
+      });
+
 
       if (0) {
         let wp = get_invariant(this.diagram, 'wirtinger_presentation');
@@ -742,7 +818,7 @@ export class KnotDiagramView {
             $alex_polys.append(Q.create("br"));
             $alex_polys.append("\u0394");
             $alex_polys.append(Q.create("sup").append(''+n));
-            $alex_polys.append("(t) = ", poly.toDOM("t"));
+            $alex_polys.append("(t) = ", poly.toExpr("t").toDOM());
           }
         } catch (x) {
           $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));

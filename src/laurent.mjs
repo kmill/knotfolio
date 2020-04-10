@@ -1,7 +1,7 @@
 import {assert, SimpleType, toString} from "./util.mjs";
 import {gcd} from "./integers.mjs";
 import {Poly} from "./poly.mjs";
-import Q from "./kq.mjs";
+import * as expr from "./expr.mjs";
 
 // A Laurent polynomial is a list of coefficients and an offset.
 
@@ -40,135 +40,22 @@ export class Laurent {
     }
     return "[" + this._offset + "; " + this._coeffs + "]";
   }
-  toMathematica(variable="t", exp_divisor=1) {
+
+  toExpr(variable="t", exp_divisor=1) {
+    /* Returns an expression as in the expr module. */
     this.normalize();
-    if (this._coeffs.length === 0) {
-      return "0";
-    }
-    let s = "";
-    function form_exp(exp) {
-      if (exp === 1) {
-        return "";
-      } else if (Math.floor(exp) === exp) {
-        return "^"+exp;
-      } else {
-        return "^("+(exp*exp_divisor)+"/"+exp_divisor+")";
-      }
-    }
+    let e = expr.make_const(0);
+    let evar = expr.make_var(variable);
     for (let i = this._coeffs.length-1; i >= 0; i--) {
       let coeff = this._coeffs[i];
       if (coeff === 0) continue;
-      let exp = (i + this._offset)/exp_divisor;
-      if (coeff > 0) {
-        if (s.length !== 0) {
-          s += " + ";
-        }
-        if (coeff === 1 && exp === 0) {
-          s += "1";
-        } else {
-          if (coeff !== 1) {
-            s += coeff;
-          }
-          if (exp !== 0) {
-            s += variable + form_exp(exp);
-          }
-        }
-      } else if (coeff === -1) {
-        if (s.length === 0) {
-          s += "-";
-        } else {
-          s += " - ";
-        }
-        if (exp === 0) {
-          s += "1";
-        } else {
-          s += variable + form_exp(exp);
-        }
-      } else {
-        if (s.length === 0) {
-          s += coeff;
-        } else {
-          s += " - " + (-coeff);
-        }
-        if (exp !== 0) {
-          s += variable + form_exp(exp);
-        }
-      }
+      let exp = i + this._offset;
+      e = expr.plus(e, expr.times(expr.make_const(coeff),
+                                  expr.pow(evar,
+                                           expr.make_const(exp, exp_divisor))));
     }
-    return s;
+    return e;
   }
-
-  toDOM(variable="t", exp_divisor=1) {
-    this.normalize();
-    if (this._coeffs.length === 0) {
-      return "0";
-    }
-    let s = [];
-    function form_exp(exp) {
-      function with_neg(v) {
-        if (v < 0) {
-          return "\u2212" + (-v);
-        } else {
-          return ''+v;
-        }
-      }
-      if (exp === 1) {
-        // ""
-      } else if (Math.floor(exp) === exp) {
-        s.push(Q.create("sup", with_neg(exp)));
-      } else {
-        s.push(Q.create("sup", with_neg(exp*exp_divisor)+"/"+exp_divisor));
-      }
-    }
-    function add_var() {
-      s.push(Q.create("var", variable));
-    }
-    for (let i = this._coeffs.length-1; i >= 0; i--) {
-      let coeff = this._coeffs[i];
-      if (coeff === 0) continue;
-      let exp = (i + this._offset)/exp_divisor;
-      if (coeff > 0) {
-        if (s.length !== 0) {
-          s.push(" + ");
-        }
-        if (coeff === 1 && exp === 0) {
-          s.push("1");
-        } else {
-          if (coeff !== 1) {
-            s.push(''+coeff);
-          }
-          if (exp !== 0) {
-            add_var();
-            form_exp(exp);
-          }
-        }
-      } else if (coeff === -1) {
-        if (s.length === 0) {
-          s.push("\u2212");
-        } else {
-          s.push(" \u2212 ");
-        }
-        if (exp === 0) {
-          s.push("1");
-        } else {
-          add_var();
-          form_exp(exp);
-        }
-      } else {
-        if (s.length === 0) {
-          s.push('' + coeff);
-        } else {
-          s.push(" \u2212 " + (-coeff));
-        }
-        if (exp !== 0) {
-          add_var();
-          form_exp(exp);
-        }
-      }
-    }
-    return Q.create("span", null, ...s);
-  }
-
 
   add(p2, c=1, exp_offset=0) {
     /* assumes both polynomials are simplified. returns a simplified
@@ -296,7 +183,7 @@ export class Laurent {
   }
 
   toString() {
-    return "Laurent.fromCoeffs(" + toString(this._coeffs) + ", " + this.offset + ")";
+    return "Laurent.fromCoeffs(" + toString(this._coeffs) + ", " + this._offset + ")";
   }
 
   // Making this a NumberSystem

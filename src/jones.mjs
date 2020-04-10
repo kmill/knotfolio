@@ -131,7 +131,7 @@ function mk_tl_X(a,b,c,d) {
 
 define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
   /* Computes the cabeled Jones polynomial from a KnotGraph (or an oriented
-     PD). Returns a polynomial in T=t^2, or null for the empty diagram. */
+     PD). Returns a polynomial in A=t^-4, or null for the empty diagram. */
   assert(cables > 0);
   if (diagram instanceof KnotGraph) {
     diagram = diagram.get_pd(true);
@@ -146,5 +146,5 @@ define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
   if (kb === null) {
     return null;
   }
-  return kb_to_jones(kb);
+  return kb;
 });

@@ -253,7 +253,7 @@ export function pd_form_cabling(diagram, cables) {
         let d = idxs[i];
         let b = j + 1 === cables ? endidxs[i] : free_id++;
         let a = i + 1 === cables ? cables*entity[0] + j : free_id++;
-        cabled.push(X.make(a, b, c, d));
+        cabled.push(entity.constructor.make(a, b, c, d));
         idxs2.push(b);
         c = a;
       }

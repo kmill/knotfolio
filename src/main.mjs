@@ -1,5 +1,6 @@
 import {assert} from "./util.mjs";
 import "./jones.mjs";
+import "./arrow.mjs";
 import "./alexander.mjs";
 import "./identify.mjs";
 import {KnotImageImportView} from "./KnotImageImportView.mjs";
