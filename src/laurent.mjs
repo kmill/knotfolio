@@ -46,7 +46,7 @@ export class Laurent {
     this.normalize();
     let e = expr.make_const(0);
     let evar = expr.make_var(variable);
-    for (let i = this._coeffs.length-1; i >= 0; i--) {
+    for (let i = 0; i < this._coeffs.length; i++) {
       let coeff = this._coeffs[i];
       if (coeff === 0) continue;
       let exp = i + this._offset;

@@ -444,6 +444,16 @@ export class KnotGraph {
     } while (d !== dart_id);
     return path;
   }
+  dart_face(dart_id) {
+    /* Takes a dart id and returns the darts that comprise a face. */
+    let path = [];
+    let d = dart_id;
+    do {
+      path.push(d);
+      d = this.next_dart(this.opp_dart(d));
+    } while (d !== dart_id);
+    return path;
+  }
 
   crossing_number() {
     let num = 0;
@@ -577,6 +587,27 @@ export class KnotGraph {
       }
     }
     return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
+  }
+
+  virtual_genus() {
+    /* Gives the virtual genus of this particular diagram. Classical
+       knot diagrams have virtual genus 0.  The virtual genus of a
+       virtual knot is the minimum of the virutal genus of all
+       diagrams. */
+    let seen_darts = new Set();
+
+    let nfaces = 0;
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (!seen_darts.has(edge_i + 1)) {
+        nfaces++;
+        this.dart_face(edge_i + 1).forEach(dart => seen_darts.add(dart));
+      }
+      if (!seen_darts.has(-edge_i - 1)) {
+        nfaces++;
+        this.dart_face(-edge_i - 1).forEach(dart => seen_darts.add(dart));
+      }
+    }
+    return this.num_components() - (nfaces - this.crossing_number())/2;
   }
 
   seifert_form() {

@@ -102,8 +102,10 @@ a:hover {
     border-radius: 3px;
     font-size: 24px;
     font-family: "Arial", "DejaVu Sans", sans-serif;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
+    overflow: hidden;
+    padding: 2px;
     text-align: center;
     vertical-align: middle;
     user-select: none;
@@ -114,16 +116,81 @@ a:hover {
     background: #ccf;
 }
 .icon-button:hover {
-    background: #666;
+    background: #888;
     color: #fff;
 }
 .icon-button:active {
     background: #aaa;
 }
 .icon-button .icon-color {
-    display: inline-block;
+    display: block;
+    margin: 5px;
     width: 14px;
     height: 14px;
+}
+
+.icon24-pencil {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -96px -216px;
+}
+.icon24-eraser {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -72px -192px;
+}
+.icon24-go-over {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: 0px -192px;
+}
+.icon24-go-through {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -48px -192px;
+}
+.icon24-go-under {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -24px -192px;
+}
+.icon24-crossing {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: 0px -216px;
+}
+.icon24-virtual-crossing {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -24px -216px;
+}
+.icon24-two-arrows {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -48px -216px;
+}
+.icon24-trash {
+    display: inline-block; width: 24px; height: 24px;
+    overflow: hidden;
+    background-image: url(/icons/icons.svg);
+    background-repeat: no-repeat;
+    background-position: -72px -216px;
 }
 
 #tools-td div.error {

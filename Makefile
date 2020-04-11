@@ -1,4 +1,4 @@
-knot_names := $(shell cat knot-names.txt)
+knot_names := $(sort $(patsubst knot-data/%.json,%,$(wildcard knot-data/*.json)))
 knot_data_targets := $(addsuffix .json,$(addprefix knot-data/,$(knot_names)))
 
 .PHONY : knot-data

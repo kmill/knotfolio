@@ -107,12 +107,12 @@ export class KnotRasterView {
                Q.create("span", {"data-tool": "pencil",
                                  title: "Pencil",
                                  className: "icon-button"},
-                        "\u270e"),
+                        Q.create("span", {className: "icon24-pencil"})),
 
                Q.create("span", {"data-tool": "eraser",
                                  title: "Eraser [right click]",
                                  className: "icon-button"},
-                        "\u2717")
+                        Q.create("span", {className: "icon24-eraser"}))
               )
         .on("click", e => {
           let el = e.target.closest('.icon-button');
@@ -149,17 +149,17 @@ export class KnotRasterView {
                Q.create("span", {"data-height": 1,
                                  title: "Go over",
                                  className: "icon-button"},
-                        "\u2197"),
+                        Q.create("span", {className: "icon24-go-over"})),
                /* same */
                Q.create("span", {"data-height": 0,
                                  title: "Go through (no auto-gaps)",
                                  className: "icon-button"},
-                        "\u2192"),
+                        Q.create("span", {className: "icon24-go-through"})),
                /* under */
                Q.create("span", {"data-height": -1,
                                  title: "Go under [shift]",
                                  className: "icon-button"},
-                        "\u2198"),
+                        Q.create("span", {className: "icon24-go-under"})),
 
               )
         .on("click", e => {
