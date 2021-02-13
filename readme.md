@@ -33,6 +33,8 @@ The program was written with support of the Simons Foundation and NSF RTG grant 
 
 ## Running code locally
 
+**Note**: This is out of date.  The most recent release uses `rollup`, and `npx rollup --config` creates `bundle.js`.
+
 The `knotinfo` module is very large, which causes the JavaScript bundler to eat an extremely large amount of memory.  This requires the use of an option for `node` to allow more memory when running `parcel`:
 ```
 NODE_OPTIONS=--max_old_space_size=4096 parcel index.html
