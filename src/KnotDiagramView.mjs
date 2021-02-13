@@ -517,7 +517,7 @@ export class KnotDiagramView {
 
     let dt = diagram.get_dt();
     if (dt) {
-      $idiv.append(Q.create("p")
+      $idiv.append(Q.create("p", {title: "The Dowker-Thistlethwaite code for the knot."})
                    .append("DT: " + toString(dt)));
     }
 
@@ -640,6 +640,13 @@ export class KnotDiagramView {
           return s;
         }
       }
+
+
+      let $conway_poly;
+      $idiv.append(Q.create("p")
+                   .append("Conway potential:")
+                   .append($conway_poly = Q.create("div")));
+      laurent_invariant(get_invariant("conway_poly", diagram), $conway_poly, "z");
 
       let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($idiv);
       (async function () {

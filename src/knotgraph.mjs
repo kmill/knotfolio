@@ -852,6 +852,15 @@ export class KnotGraph {
         matrices.push(visit_component(edge_i));
       }
     }
+    // Will be missing trivial unknot diagram components
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (this.dart_order(edge_i + 1) === 2 && seen_edges[edge_i] === -1) {
+        matrices.push([]);
+        this.dart_circuit(edge_i + 1).forEach(dart => {
+          seen_edges[Math.abs(dart) - 1] = true;
+        });
+      }
+    }
     return matrices;
   }
 

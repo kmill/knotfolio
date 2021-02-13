@@ -5,7 +5,8 @@
   "main": "src/main.mjs",
   "scripts": {
     "test": "sh run_tests.sh",
-    "start": "NODE_OPTIONS=--max_old_space_size=4096 parcel index.html"
+    "start": "NODE_OPTIONS=--max_old_space_size=4096 parcel index.html",
+    "build": "rollup --config"
   },
   "author": "Kyle Miller",
   "license": "GPL-2.0-or-later",
@@ -13,6 +14,8 @@
     "last 1 Chrome versions"
   ],
   "devDependencies": {
-    "cssnano": "^4.1.10"
+    "cssnano": "^4.1.10",
+    "rollup": "^2.39.0",
+    "rollup-plugin-terser": "^7.0.2"
   }
 }
