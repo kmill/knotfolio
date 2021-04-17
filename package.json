@@ -14,8 +14,8 @@
     "last 1 Chrome versions"
   ],
   "devDependencies": {
-    "cssnano": "^4.1.10",
-    "rollup": "^2.39.0",
+    "cssnano": "^4.1.11",
+    "rollup": "^2.45.0",
     "rollup-plugin-terser": "^7.0.2"
   }
 }

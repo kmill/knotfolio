@@ -1,10 +1,13 @@
 import {terser} from 'rollup-plugin-terser';
 
 export default {
-  input: "src/main.mjs",
+  input: {
+    main: "src/main.mjs"
+  },
   output: {
-    file: "bundle.js",
+    dir: "build",
     format: "cjs",
+    sourcemap: true,
     plugins: [terser()]
   }
 };
