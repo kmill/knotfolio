@@ -22,6 +22,22 @@ export function det(NumberSystem, matrix) {
       NumberSystem.negate(NumberSystem.mul(matrix[1][0], matrix[0][1])));
   }
 
+  if (matrix.length === 3) {
+    return NumberSystem.add(
+      NumberSystem.add(
+        NumberSystem.add(
+          NumberSystem.mul(NumberSystem.mul(matrix[0][0], matrix[1][1]), matrix[2][2]),
+          NumberSystem.mul(NumberSystem.mul(matrix[0][1], matrix[1][2]), matrix[2][0])),
+        NumberSystem.mul(NumberSystem.mul(matrix[0][2], matrix[1][0]), matrix[2][1])),
+      NumberSystem.negate(
+        NumberSystem.add(
+          NumberSystem.add(
+            NumberSystem.mul(NumberSystem.mul(matrix[0][0], matrix[2][1]), matrix[1][2]),
+            NumberSystem.mul(NumberSystem.mul(matrix[0][1], matrix[2][2]), matrix[1][0])),
+          NumberSystem.mul(NumberSystem.mul(matrix[0][2], matrix[2][0]), matrix[1][1]))
+      ));
+  }
+
   // Do cofactor expansion over the first row.
   let val = NumberSystem.zero;
   for (let j = 0; j < matrix[0].length; j++) {

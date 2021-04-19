@@ -41,11 +41,10 @@ export function get_invariant(name, diagram, /*args*/) {
       }
     })
   };
+  running_mts.push(mt);
                                 
   let promise = new Promise((resolve, reject) => {
-    running_mts.push(mt);
     setTimeout(async function () {
-      cache[key] = promise;
       try {
         let val = invariant_handlers[name](mt, diagram, ...args);
         resolve(val);
@@ -56,6 +55,7 @@ export function get_invariant(name, diagram, /*args*/) {
       }
     }, 0);
   });
+  cache[key] = promise;
 
   return promise;
 }
