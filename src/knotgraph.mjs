@@ -939,8 +939,8 @@ export class KnotGraph {
   get_pd(oriented=false) {
     /* Gets an unoriented/oriented PD object.
 
-       Chooses edge ids in ascending order of component. Makes sure d -> b is the orientation.
-       If oriented=true, then Xr/Xl are used to determine the orientation of a--c.
+       Chooses edge ids in ascending order of component. Makes sure a -> c is the orientation.
+       If oriented=true, then Xr/Xl are used to determine the orientation of b--d.
     */
     let dart_arc = new Map();
     let next_arc_id = 1;
@@ -967,18 +967,15 @@ export class KnotGraph {
           j++;
         }
         circuit = circuit.slice(j).concat(circuit.slice(0, j));
-        // now the first dart is at a crossing.
-        for (let k = circuit.length - 1; k >= 0; k--) {
-          if (this.dart_order(circuit[k]) === 4) {
-            let arc_darts = circuit.slice(k);
-            circuit.length = k;
-            let arc = next_arc_id++;
-            arc_darts.forEach(d => {
-              dart_arc.set(d, arc);
-              dart_arc.set(-d, arc);
-            });
+        // now the first dart is at a crossing (is order 4).
+        let arc_id = null;
+        circuit.forEach(dart => {
+          if (this.dart_order(dart) === 4) {
+            arc_id = next_arc_id++;
           }
-        }
+          dart_arc.set(dart, arc_id);
+          dart_arc.set(-dart, arc_id);
+        });
       }
     }
     this.adjs.forEach(adj => {
