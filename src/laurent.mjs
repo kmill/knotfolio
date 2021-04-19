@@ -368,6 +368,9 @@ export class Laurent extends SimpleType {
     assert(typeof v === "number");
     return Laurent.make(LTerm.make(v, 0));
   }
+  static is_zero(a) {
+    return a.is_zero();
+  }
 }
 
 Laurent.zero = Laurent.make();

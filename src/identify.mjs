@@ -11,7 +11,7 @@ define_invariant("identify_link", async function (mt, diagram) {
   let conway_coeffs = [conway_poly.minexp()].concat(conway_poly.coeffs());
   let conway_mirror = conway_coeffs.slice();
   for (let i = 1; i < conway_mirror.length; i++) {
-    if (conway_mirror[0] + (i - 1) % 2 == 1) {
+    if ((conway_mirror[0] + i - 1) % 2 == 1) {
       conway_mirror[i] = -conway_mirror[i];
     }
   }

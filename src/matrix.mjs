@@ -4,7 +4,7 @@ import {eigenvalues} from "./eigenvalues.mjs";
 
 export function det(NumberSystem, matrix) {
   /* Computes the determinant of the given matrix, with entries in the
-     NumberSystem = {zero, unit, add, mul, negate}.  A matrix is a list of
+     NumberSystem = {zero, unit, add, mul, negate, is_zero}.  A matrix is a list of
      lists.  Performs cofactor expansion along the first row (matrix[0][...]). */
 
   if (matrix.length === 0) {
@@ -16,10 +16,19 @@ export function det(NumberSystem, matrix) {
     return matrix[0][0];
   }
 
+  if (matrix.length === 2) {
+    return NumberSystem.add(
+      NumberSystem.mul(matrix[0][0], matrix[1][1]),
+      NumberSystem.negate(NumberSystem.mul(matrix[1][0], matrix[0][1])));
+  }
+
   // Do cofactor expansion over the first row.
   let val = NumberSystem.zero;
   for (let j = 0; j < matrix[0].length; j++) {
     let c = matrix[0][j];
+    if (NumberSystem.is_zero(c)) {
+      continue;
+    }
     if (j % 2 === 1) {
       c = NumberSystem.negate(c);
     }
