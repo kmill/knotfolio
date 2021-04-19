@@ -220,19 +220,19 @@ export class KnotDiagramView {
     Q.create("h2").append("Modification tools").appendTo($div);
     let $tools = Q.div().appendTo($div);
 
-    let $crossing_change = Q.span("\u292B")
+    let $crossing_change = Q.span(Q.span({className:"icon24-crossing"}))
         .addClass("icon-button")
         .prop("data-tool", "crossing-change")
         .prop("title", "Change crossing type")
         .appendTo($tools);
 
-    let $toggle_orientation = Q.span("\u21C4")
+    let $toggle_orientation = Q.span(Q.span({className:"icon24-two-arrows"}))
         .addClass("icon-button")
         .prop("data-tool", "toggle-orientation")
         .prop("title", "Toggle component orientation")
         .appendTo($tools);
 
-    let $eraser = Q.span("\u2717")
+    let $eraser = Q.span(Q.span({className:"icon24-trash"}))
         .addClass("icon-button")
         .prop("data-tool", "delete-component")
         .prop("title", "Delete component")

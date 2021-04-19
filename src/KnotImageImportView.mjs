@@ -134,11 +134,11 @@ export class KnotImageImportView {
         Q.span({"data-tool": "move",
                 title: "Move image [right click]",
                 className: "icon-button"},
-               "\u219d"),
+               Q.create("span", {className: "icon24-move"})),
         Q.span({"data-tool": "crop",
                 title: "Crop image",
                 className: "icon-button"},
-               "\u21f2"),
+               Q.create("span", {className: "icon24-crop"})),
       )
         .on("click", e => {
           let el = e.target.closest('.icon-button');
