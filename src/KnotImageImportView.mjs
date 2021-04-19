@@ -32,7 +32,7 @@ export class KnotImageImportView {
     this.invert = false;
     this.blur = 0;
     this.adaptive = 20;
-    this.threshold = 0.00;
+    this.threshold = -0.05;
 
     this.tmp_canvas = document.createElement("canvas");
     this.tmp_canvas.width = this.width;
