@@ -544,12 +544,12 @@ export class KnotDiagramView {
     $idiv.append(Q.create("h2").append("Identification"));
     let $ident = Q.create("p").appendTo($idiv);
     get_invariant('identify_link', this.diagram).then(
-      names => {
-        if (names.length === 0) {
+      res => {
+        if (res.names.length === 0) {
           $ident.append("Unknown link");
         } else {
           $ident.append("Candidates: ");
-          names.forEach((c, i) => {
+          res.names.forEach((c, i) => {
             if (i > 0) {
               $ident.append(", ");
             }
@@ -561,6 +561,9 @@ export class KnotDiagramView {
               $ident.append(c.name);
             }
           });
+        }
+        if (res.incomplete) {
+          $ident.append(" (warning: possibly incomplete)");
         }
       },
       err => {

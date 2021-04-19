@@ -25,9 +25,9 @@ Some UI ideas came from [KLO](http://KLO-Software.net) and Josh Horowitz's [knot
 
 Knot identification uses the invaluable KnotInfo and LinkInfo databases:
 
-* J. C. Cha and C. Livingston, KnotInfo: Table of Knot Invariants, http://www.indiana.edu/~knotinfo, August 18, 2019.
+* C. Livingston and A. H. Moore, KnotInfo: Table of Knot Invariants, https://knotinfo.math.indiana.edu, April 17, 2021.
 
-* J. C. Cha and C. Livingston, LinkInfo: Table of Knot Invariants, http://www.indiana.edu/~linkinfo, August 18, 2019.
+* C. Livingston and A. H. Moore, LinkInfo: Table of Link Invariants, https://linkinfo.sitehost.iu.edu, April 17, 2021.
 
 The program was written with support of the Simons Foundation and NSF RTG grant DMS-1344991.
 

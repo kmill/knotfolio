@@ -15,14 +15,17 @@ define_invariant("conway_poly", async function (mt, diagram) {
     return Laurent.zero;
   }
   let A = matrices[0];
+  // calculate C = -tA+t^{-1}A^T
+  // (chose +/- convention to match Linkinfo's conway polynomials)
   let C = [];
   for (let i = 0; i < A.length; i++) {
     C.push([]);
     for (let j = 0; j < A.length; j++) {
-      C[i][j] = Laurent.add(Laurent.mul(Laurent.incl(A[i][j]), Laurent.t),
-                            Laurent.mul(Laurent.incl(-A[j][i]), Laurent.tinv));
+      C[i][j] = Laurent.add(Laurent.mul(Laurent.incl(-A[i][j]), Laurent.t),
+                            Laurent.mul(Laurent.incl(A[j][i]), Laurent.tinv));
     }
   }
+  // pre_poly is the normalized Alexander polynomial
   let pre_poly = det(Laurent, C);
   if (pre_poly.is_zero()) {
     return Laurent.zero;
