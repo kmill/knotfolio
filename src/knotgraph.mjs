@@ -1,6 +1,6 @@
 import {assert, remove_value, toString, compare} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
-import {segments_intersect} from "./geom2d.mjs";
+import {Point, segments_intersect} from "./geom2d.mjs";
 import {PD,P,X,Xp,Xm} from "./pd.mjs";
 
 export class KnotGraph {
@@ -1051,5 +1051,445 @@ export class KnotGraph {
     codes.sort(compare);
 
     return codes[0];
+  }
+
+  skeleton() {
+    let parts = [];
+    let loops = []; /* disconnected loops; array of component ids */
+    let seen_edges = new Set;
+
+    for (let teid = 0; teid < this.edges.length; teid++) {
+      if (seen_edges.has(teid)) {
+        continue;
+      }
+
+      let circuit = this.dart_circuit(teid + 1);
+
+      if (circuit.every(d => this.dart_order(d) === 2)) {
+        loops.push(this.edges[teid][2]);
+        circuit.forEach(d => seen_edges.add(Math.abs(d) - 1));
+        continue;
+      }
+
+      let next_arc_id = 1;
+      let edge_arcs = new Map; /* map from edge id to arc id for non-loops */
+      let arc_comps = new Map; /* map from arc ids to component ids */
+      let part_verts = new Set;
+
+      let to_visit = [teid];
+      while (to_visit.length > 0) {
+        let eid = to_visit.pop();
+        if (seen_edges.has(eid)) {
+          continue;
+        }
+
+        let comp = this.edges[eid][2];
+        let circuit = this.dart_circuit(eid + 1);
+
+        // Combine edges into arcs
+
+        let j = 0;
+        while (this.dart_order(circuit[j]) !== 4) {
+          j++;
+        }
+        circuit = circuit.slice(j).concat(circuit.slice(0, j));
+        // ^ now the first dart is at a crossing (is of order 4).
+        let arc_id = null;
+        circuit.forEach(dart => {
+          if (this.dart_order(dart) === 4) {
+            arc_id = next_arc_id++;
+            arc_comps.set(arc_id, comp);
+            // record that this vertex is in this part
+            let vid = this.dart_edge(dart)[0];
+            part_verts.add(vid);
+            // add other edges at vertex to to_visit
+            this.adjs[vid].forEach(d => {
+              let e = Math.abs(d) - 1;
+              if (!seen_edges.has(e)) {
+                to_visit.push(e);
+              }
+            });
+          }
+          edge_arcs.set(Math.abs(dart) - 1, arc_id);
+          seen_edges.add(Math.abs(dart) - 1);
+        });
+      }
+
+      // Construct vertex lists
+      let verts = [];
+      part_verts.forEach(vid => {
+        let adj = this.adjs[vid].map(d => {
+          let arc_id = edge_arcs.get(Math.abs(d) - 1);
+          if (d > 0) {
+            return arc_id;
+          } else {
+            return -arc_id;
+          }
+        });
+        verts.push(adj);
+      });
+      parts.push({
+        // A list of dart lists
+        verts: verts,
+        // A description of how the vertex arose ("" is default)
+        vert_types: verts.map(v => ""),
+        // A list of vertices for the knot; these are lists of darts
+        knot: verts,
+        // A map from darts for the knot to components. Only includes darts that match the knot's orientation.
+        comps: arc_comps
+      });
+    }
+    return {
+      // A list components.  There is one loop per entry
+      loops: loops,
+      parts: parts
+    };
+  }
+
+  beautify() {
+    /* Re-embed using the Tutte embedding of a barycentric subdivision. */
+
+    function barycentric(skel) {
+      function face_darts(dart) {
+        let darts = [];
+        let curr_dart = dart;
+        face_loop:
+        while (true) {
+          for (let vid = 0; vid < skel.verts.length; vid++) {
+            let idx = skel.verts[vid].indexOf(-curr_dart);
+            if (idx !== -1) {
+              curr_dart = skel.verts[vid][(idx + skel.verts[vid].length - 1) % skel.verts[vid].length];
+              darts.push(curr_dart);
+              if (curr_dart === dart) {
+                break face_loop;
+              } else {
+                continue face_loop;
+              }
+            }
+          }
+          throw new Error;
+        }
+        return darts;
+      }
+      function face_dart(dart) {
+        // Get a representative dart for the face
+        return Math.min(...face_darts(dart));
+      }
+
+      var fresh_dart = 1;
+      var darts = new Map;
+      function vert_key(vid) {
+        return "[v " + vid + "]";
+      }
+      function edge_key(dart) {
+        return "[e " + Math.abs(dart) + "]";
+      }
+      function face_key(dart) {
+        return "[f " + face_dart(dart) + "]";
+      }
+      function dart_for(key) {
+        if (!darts.has(key)) {
+          darts.set(key, fresh_dart++);
+        }
+        return darts.get(key);
+      }
+
+      let dart_remap = new Map;
+      let dart_remap_over_edge = new Map;
+
+      let verts = [];
+      let vert_types = [];
+      // vertices
+      skel.verts.forEach((vert, vid) => {
+        let new_vert = [];
+        vert.forEach((dart, i) => {
+          new_vert.push(dart_for(vert_key(vid) + edge_key(dart)));
+          dart_remap.set(dart, dart_for(vert_key(vid) + edge_key(dart)));
+          new_vert.push(dart_for(vert_key(vid) + face_key(dart)));
+        });
+        verts.push(new_vert);
+        vert_types.push(skel.vert_types[vid] + "v");
+      });
+      // edges
+      skel.verts.forEach((vert, vid) => {
+        vert.forEach((dart, i) => {
+          if (dart < 0) return;
+          let new_vert = [];
+          new_vert.push(dart_for(edge_key(dart) + face_key(dart)));
+          new_vert.push(-dart_for(vert_key(vid) + edge_key(dart)));
+          dart_remap_over_edge.set(-dart, -dart_for(vert_key(vid) + edge_key(dart)));
+          for (let vid = 0; vid < skel.verts.length; vid++) {
+            let idx = skel.verts[vid].indexOf(-dart);
+            if (idx != -1) {
+              new_vert.push(dart_for(edge_key(dart) + face_key(-dart)));
+              new_vert.push(-dart_for(vert_key(vid) + edge_key(dart)));
+              dart_remap_over_edge.set(dart, -dart_for(vert_key(vid) + edge_key(dart)));
+              verts.push(new_vert);
+              vert_types.push("e");
+              return;
+            }
+          }
+          throw new Error;
+        });
+      });
+      // faces
+      let seen_faces = new Set;
+      skel.verts.forEach(vert => {
+        vert.forEach(dart => {
+          let face = face_dart(dart);
+          if (seen_faces.has(face)) {
+            return;
+          }
+          seen_faces.add(face);
+          let new_vert = [];
+          face_darts(dart).forEach(dart => {
+            // `dart` ranges over darts in face `face`.
+            for (let vid = 0; vid < skel.verts.length; vid++) {
+              if (skel.verts[vid].includes(dart)) {
+                new_vert.push(-dart_for(vert_key(vid) + face_key(face)));
+                break;
+              }
+            }
+            new_vert.push(-dart_for(edge_key(dart) + face_key(face)));
+          });
+          verts.push(new_vert);
+          vert_types.push("f");
+        });
+      });
+
+      let new_knot = skel.knot.map(p => p.map(d => dart_remap.get(d)));
+      let new_comps = new Map;
+      skel.comps.forEach((comp, d) => {
+        let d1 = dart_remap.get(d);
+        let d2 = dart_remap_over_edge.get(d);
+        new_comps.set(d1, comp);
+        new_comps.set(d2, comp);
+        new_knot.push([-d1, d2]);
+      });
+
+      return {
+        verts: verts,
+        vert_types: vert_types,
+        knot: new_knot,
+        comps: new_comps
+      };
+    }
+
+    let skel = this.skeleton();
+    console.log(skel);
+
+    this.verts = [];
+    this.edges = [];
+    this.adjs = [];
+
+    let num_parts = skel.loops.length + skel.parts.length;
+    let cols = Math.ceil(Math.sqrt(num_parts));
+    let row = 0;
+    let col = 0;
+
+    // Draw the unknot parts
+    skel.loops.forEach(comp => {
+      let cx = 800 / cols * (col + 0.5);
+      let cy = 800 / cols * (row + 0.5);
+      let r = 0.8 * 800 / cols / 2;
+
+      const SUBDIV = 30;
+      let vids = [];
+      for (let i = 0; i < SUBDIV; i++) {
+        let vid = this.verts.length;
+        this.verts.push(new Point(cx + r * Math.cos(2 * Math.PI * i / SUBDIV),
+                                  cy - r * Math.sin(2 * Math.PI * i / SUBDIV)));
+        vids.push(vid);
+      }
+      let edges = [];
+      for (let i = 0; i < SUBDIV; i++) {
+        let eid = this.edges.length;
+        this.edges.push([vids[i], vids[(i + 1) % SUBDIV], comp]);
+        edges.push(eid);
+      }
+      for (let i = 0; i < SUBDIV; i++) {
+        this.adjs.push([edges[i] + 1,
+                        -edges[(i + SUBDIV - 1) % SUBDIV] - 1]);
+      }
+
+      col++;
+      if (col >= cols) {
+        col = 0;
+        row++;
+      }
+    });
+
+    // Draw the knotted parts
+    skel.parts.forEach(part => {
+      let cx = 800 / cols * (col + 0.5);
+      let cy = 800 / cols * (row + 0.5);
+      let r = 0.8 * 800 / cols / 2;
+
+      const FACE_VERT_TYPE = "fv";
+      part = barycentric(barycentric(part));
+      //const FACE_VERT_TYPE = "fvv";
+      //part = barycentric(barycentric(barycentric(part)));
+      console.log(part);
+
+      // locate best outside face.
+      let outside = null;
+      let max_degree = 0;
+      part.verts.forEach((vert, vid) => {
+        if (part.vert_types[vid] == FACE_VERT_TYPE && max_degree < vert.length) {
+          max_degree = vert.length;
+          outside = vid;
+        }
+      });
+      console.log("best: " + outside);
+
+      let vid_of_dart = new Map;
+      part.verts.forEach((vert, vid) => {
+        vert.forEach(dart => {
+          vid_of_dart.set(dart, vid);
+        });
+      });
+
+      function row_reduce(matrix) {
+        let rows = matrix.length,
+            cols = matrix[0].length;
+        let i = 0, j = 0; // current pivot
+        while (i < rows && j < cols) {
+          let besti = i;
+          for (let k = i + 1; k < rows; k++) {
+            if (Math.abs(matrix[k][j]) > Math.abs(matrix[besti][j])) {
+              besti = k;
+            }
+          }
+          if (besti !== i) {
+            [matrix[i], matrix[besti]] = [matrix[besti], matrix[i]];
+          }
+          if (matrix[i][j] === 0) {
+            j++;
+            continue;
+          }
+          let c = matrix[i][j];
+          matrix[i] = matrix[i].map(v => v / c);
+          for (let k = 0; k < rows; k++) {
+            if (k !== i) {
+              c = matrix[k][j];
+              matrix[k][j] = 0;
+              for (let l = j + 1; l < cols; l++) {
+                matrix[k][l] -= c * matrix[i][l];
+              }
+            }
+          }
+          i++;
+          j++;
+        }
+      }
+
+      let matrixx = [];
+      let matrixy = [];
+      let is_fixed = new Set;
+      part.verts[outside].forEach((dart, i) => {
+        let vid = vid_of_dart.get(-dart);
+        is_fixed.add(vid);
+        let rowx = new Array(part.verts.length+1).fill(0);
+        rowx[vid] = 1;
+        rowx[part.verts.length] = Math.cos(2 * Math.PI * i / max_degree);
+        let rowy = new Array(part.verts.length+1).fill(0);
+        rowy[vid] = 1;
+        rowy[part.verts.length] = Math.sin(2 * Math.PI * i / max_degree);
+        matrixx.push(rowx);
+        matrixy.push(rowy);
+      });
+
+      part.verts.forEach((vert, vid) => {
+        if (vid === outside || is_fixed.has(vid)) {
+          return;
+        }
+        let rowx = new Array(part.verts.length+1).fill(0);
+        vert.forEach(dart => {
+          let vid2 = vid_of_dart.get(-dart);
+          rowx[vid2] += 1;
+          rowx[vid] -= 1;
+        });
+        matrixx.push(rowx);
+        matrixy.push(rowx.slice());
+      });
+
+      //console.log("{" + matrixx.map(row => "{" + row.join(",") + "}").join(",") + "}");
+      //console.log("{" + matrixy.map(row => "{" + row.join(",") + "}").join(",") + "}");
+
+      row_reduce(matrixx);
+      row_reduce(matrixy);
+
+      function vid_point(vid) {
+        if (vid < outside) {
+          return new Point(matrixx[vid][part.verts.length], matrixy[vid][part.verts.length]);
+        } else if (vid === outside) {
+          throw new Error;
+        } else {
+          return new Point(matrixx[vid - 1][part.verts.length], matrixy[vid - 1][part.verts.length]);
+        }
+      }
+
+      var points = [];
+      part.knot.forEach(p => {
+        points.push(vid_point(vid_of_dart.get(p[0])));
+      });
+      let minx = 1e10, maxx = -1e10,
+          miny = 1e10, maxy = -1e10;
+      points.forEach(pt => {
+        minx = Math.min(minx, pt.x);
+        maxx = Math.max(maxx, pt.x);
+        miny = Math.min(miny, pt.y);
+        maxy = Math.max(maxy, pt.y);
+      });
+      points.forEach(pt => {
+        let x = pt.x - (minx + maxx)/2,
+            y = pt.y - (miny + maxy)/2;
+        let scale = Math.max(maxx - minx, maxy - miny)/2;
+        pt.x = cx + x/scale * r;
+        pt.y = cy + y/scale * r;
+      });
+
+      let vids = [];
+      points.forEach(pt => {
+        let vid = this.verts.length;
+        this.verts.push(pt);
+        vids.push(vid);
+      });
+      let knot_vid_of_dart = new Map;
+      part.knot.forEach((vert, vid) => {
+        vert.forEach(dart => {
+          knot_vid_of_dart.set(dart, vid);
+        });
+      });
+      let edges = new Map;
+      part.comps.forEach((comp, d) => {
+        let eid = this.edges.length;
+        edges.set(d, eid);
+        this.edges.push([
+          vids[knot_vid_of_dart.get(d)],
+          vids[knot_vid_of_dart.get(-d)],
+          comp
+        ]);
+      });
+      part.knot.forEach((adj, knot_vid) => {
+        this.adjs.push(adj.map(d => {
+          if (edges.has(d)) {
+            return edges.get(d) + 1;
+          } else {
+            return -1-edges.get(-d);
+          }
+        }));
+      });
+
+      col++;
+      if (col >= cols) {
+        col = 0;
+        row++;
+      }
+    });
+
+    console.log(this);
+
+
   }
 }

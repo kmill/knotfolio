@@ -351,6 +351,7 @@ export class KnotDiagramView {
       undo_stack.push(view);
     });*/
 
+    /*
     let $simplify_mesh = Q.create("input")
         .prop("type", "button")
         .value("Simplify mesh")
@@ -361,8 +362,18 @@ export class KnotDiagramView {
       view.diagram.simplify_mesh(5);
       view.diagram.compact();
       undo_stack.push(view);
-    });
+    });*/
 
+    let $beautify = Q.create("input")
+        .prop("type", "button")
+        .value("Beautify")
+        .prop("title", "Try to beautify the knot using a the Tutte embedding of a barycentric subdivision of the diagram")
+        .appendTo($div);
+    $beautify.on("click", e => {
+      let view = this.copy();
+      view.diagram.beautify();
+      undo_stack.push(view);
+    });
 
     $div.append(Q.create("hr"));
 
