@@ -367,7 +367,7 @@ export class KnotDiagramView {
     let $beautify = Q.create("input")
         .prop("type", "button")
         .value("Beautify")
-        .prop("title", "Try to beautify the knot using a the Tutte embedding of a barycentric subdivision of the diagram")
+        .prop("title", "Redraw using a Tutte embedding of a barycentric subdivision of the diagram")
         .appendTo($div);
     $beautify.on("click", e => {
       let view = this.copy();
