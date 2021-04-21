@@ -24,6 +24,9 @@ export class Poly extends SimpleType {
   is_zero() {
     return this.length === 0;
   }
+  is_unit() {
+    return this.length === 1 && this[0] === 1;
+  }
   leading_coeff() {
     if (this.length === 0) {
       return 0;
@@ -187,6 +190,29 @@ export class Poly extends SimpleType {
     }
 
     return C1;
+  }
+
+  divide(q) {
+    /* Divide by the polynomial q, returning the quotient. */
+    assert(q instanceof Poly);
+    assert(q.degree() >= 0);
+    if (q.degree() === 0) {
+      return this.map(c => c / q[0]);
+    }
+    let q_lead = q.leading_coeff();
+    let r = this;
+    let d = Poly.zero;
+    while (true) {
+      let i = r.degree() - q.degree();
+      if (i < 0) break;
+      let c = r.leading_coeff() / q_lead;
+      d = d.add(Poly.incl(c).mul_x(i));
+      r = r.add(q.scale(-c).mul_x(i));
+    }
+    // now this == q * d + r
+    //console.log("divided " + this + " by " + q);
+    //console.log("  got " + d + " rem " + r);
+    return d;
   }
 
   static incl(c) {
