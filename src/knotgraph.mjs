@@ -1126,6 +1126,23 @@ export class KnotGraph {
             return -arc_id;
           }
         });
+        for (let i = 0; i < adj.length; i++) {
+          if (adj[i] < 0 &&
+              (adj[i] === -adj[(i + 1) % adj.length]
+               || adj[i] === -adj[(i + adj.length - 1) % adj.length])) {
+            // Reidemeister I loop.
+            // Add in an extra degree-2 vertex so that the graph has no loop edges
+            let arc_id = -adj[i];
+            let arc_id2 = next_arc_id++;
+            verts.push([arc_id2, -arc_id]);
+            adj[i] = -arc_id2;
+            if (arc_comps.has(arc_id)) {
+              arc_comps.set(arc_id2, arc_comps.get(arc_id));
+            } else {
+              arc_comps.set(-arc_id2, arc_comps.get(-arc_id));
+            }
+          }
+        }
         verts.push(adj);
       });
       parts.push({
@@ -1205,7 +1222,7 @@ export class KnotGraph {
         vert.forEach((dart, i) => {
           new_vert.push(dart_for(vert_key(vid) + edge_key(dart)));
           dart_remap.set(dart, dart_for(vert_key(vid) + edge_key(dart)));
-          new_vert.push(dart_for(vert_key(vid) + face_key(dart)));
+          new_vert.push(dart_for(vert_key(vid) + i + face_key(dart)));
         });
         verts.push(new_vert);
         vert_types.push(skel.vert_types[vid] + "v");
@@ -1245,8 +1262,9 @@ export class KnotGraph {
           face_darts(dart).forEach(dart => {
             // `dart` ranges over darts in face `face`.
             for (let vid = 0; vid < skel.verts.length; vid++) {
-              if (skel.verts[vid].includes(dart)) {
-                new_vert.push(-dart_for(vert_key(vid) + face_key(face)));
+              let i = skel.verts[vid].indexOf(dart);
+              if (i !== -1) {
+                new_vert.push(-dart_for(vert_key(vid) + i + face_key(face)));
                 break;
               }
             }
@@ -1266,6 +1284,17 @@ export class KnotGraph {
         new_comps.set(d2, comp);
         new_knot.push([-d1, d2]);
       });
+
+      { // check that verts is well-formed
+        let darts = new Set;
+        verts.forEach(adj => adj.forEach(d => {
+          assert(!darts.has(d));
+          darts.add(d);
+        }));
+        darts.forEach(d => {
+          assert(darts.has(-d));
+        });
+      }
 
       return {
         verts: verts,
@@ -1326,10 +1355,13 @@ export class KnotGraph {
       let r = 0.8 * 800 / cols / 2;
 
       const FACE_VERT_TYPE = "fv";
-      part = barycentric(barycentric(part));
+      //console.log(part);
+      part = barycentric(part);
+      //console.log(part);
+      part = barycentric(part);
+      console.log(part);
       //const FACE_VERT_TYPE = "fvv";
       //part = barycentric(barycentric(barycentric(part)));
-      console.log(part);
 
       // locate best outside face.
       let outside = null;
