@@ -1166,7 +1166,8 @@ export class KnotGraph {
   beautify() {
     /* Re-embed using the Tutte embedding of a barycentric subdivision. */
 
-    function barycentric(skel) {
+    function barycentric(skel, medial=false) {
+      /* When medial is true, do the medial subdivision rather than the barycentric subdivision. */
       function face_darts(dart) {
         let darts = [];
         let curr_dart = dart;
@@ -1222,7 +1223,9 @@ export class KnotGraph {
         vert.forEach((dart, i) => {
           new_vert.push(dart_for(vert_key(vid) + edge_key(dart)));
           dart_remap.set(dart, dart_for(vert_key(vid) + edge_key(dart)));
-          new_vert.push(dart_for(vert_key(vid) + i + face_key(dart)));
+          if (!medial) {
+            new_vert.push(dart_for(vert_key(vid) + i + face_key(dart)));
+          }
         });
         verts.push(new_vert);
         vert_types.push(skel.vert_types[vid] + "v");
@@ -1261,11 +1264,13 @@ export class KnotGraph {
           let new_vert = [];
           face_darts(dart).forEach(dart => {
             // `dart` ranges over darts in face `face`.
-            for (let vid = 0; vid < skel.verts.length; vid++) {
-              let i = skel.verts[vid].indexOf(dart);
-              if (i !== -1) {
-                new_vert.push(-dart_for(vert_key(vid) + i + face_key(face)));
-                break;
+            if (!medial) {
+              for (let vid = 0; vid < skel.verts.length; vid++) {
+                let i = skel.verts[vid].indexOf(dart);
+                if (i !== -1) {
+                  new_vert.push(-dart_for(vert_key(vid) + i + face_key(face)));
+                  break;
+                }
               }
             }
             new_vert.push(-dart_for(edge_key(dart) + face_key(face)));
@@ -1354,11 +1359,12 @@ export class KnotGraph {
       let cy = 800 / cols * (row + 0.5);
       let r = 0.8 * 800 / cols / 2;
 
-      const FACE_VERT_TYPE = "fv";
+      const FACE_VERT_TYPE = "fvv";
       //console.log(part);
-      part = barycentric(part);
+      part = barycentric(part, true);
       //console.log(part);
-      part = barycentric(part);
+      part = barycentric(part, true);
+      part = barycentric(part, true);
       console.log(part);
       //const FACE_VERT_TYPE = "fvv";
       //part = barycentric(barycentric(barycentric(part)));
@@ -1453,10 +1459,14 @@ export class KnotGraph {
 
       function vid_point(vid) {
         if (vid < outside) {
+          assert(matrixx[vid][vid] === 1);
+          assert(matrixy[vid][vid] === 1);
           return new Point(matrixx[vid][part.verts.length], matrixy[vid][part.verts.length]);
         } else if (vid === outside) {
           throw new Error;
         } else {
+          assert(matrixx[vid - 1][vid] === 1);
+          assert(matrixy[vid - 1][vid] === 1);
           return new Point(matrixx[vid - 1][part.verts.length], matrixy[vid - 1][part.verts.length]);
         }
       }
