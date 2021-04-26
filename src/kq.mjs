@@ -88,6 +88,8 @@ Q.prototype.append = function (/*varargs*/) {
       node.appendTo(this);
     } else if (node instanceof Element) {
       this[0].appendChild(node);
+    } else if (node instanceof Array) {
+      node.forEach(n => this.append(n));
     } else {
       this[0].appendChild(document.createTextNode('' + node));
     }

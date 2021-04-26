@@ -83,3 +83,27 @@ export class Xm extends X {
     return "Xm[" + this.join(",") + "]";
   }
 }
+
+export class Virtual extends SimpleType {
+  static make(a, b, c, d) {
+    /* Represents a virtual crossing like
+
+         c \ / b
+            O
+         d / \ a
+
+       where a, b, c, and d are edge ids.
+    */
+
+    assert(arguments.length === 4);
+    return super.make(a, b, c, d);
+  }
+  toMathematica() {
+    let [a, b, c, d] = this;
+    return "P[" + a + "," + c + "], P[" + b + "," + d + "]";
+  }
+  toSnappy() {
+    let [a, b, c, d] = this;
+    return "(" + a + "," + c + "), (" + b + "," + d + ")";
+  }
+}

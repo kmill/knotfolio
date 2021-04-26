@@ -1,6 +1,7 @@
 import {assert, SimpleType} from "./util.mjs";
 import {gcd} from "./integers.mjs";
 import {Poly} from "./poly.mjs";
+import * as expr from "./expr.mjs";
 import Q from "./kq.mjs";
 
 // A Laurent polynomial is a Laurent list of LTerms.
@@ -201,6 +202,19 @@ export class Laurent extends SimpleType {
     return Q.create("span", null, ...s);
   }
 
+  toExpr(variable="t", exp_divisor=1) {
+    /* Returns an expression as in the expr module. */
+    this.normalize();
+    let e = expr.make_int_const(0);
+    let evar = expr.make_var(variable);
+    this.forEach(t => {
+      e = expr.plus(e, expr.times(expr.make_int_const(t.coeff),
+                                  expr.pow(evar,
+                                           expr.make_int_const(t.exp, exp_divisor))));
+    });
+    console.log(e);
+    return e;
+  }
 
   add(p2, c=1, exp_offset=0) {
     /* assumes both polynomials are simplified. returns a simplified

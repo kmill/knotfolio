@@ -7,6 +7,7 @@ import {Point, line_points, lines_intersect, segment_contains, segments_intersec
 import {KnotGraph} from "./knotgraph.mjs";
 import {KnotImageImportView} from "./KnotImageImportView.mjs";
 import {KnotDiagramView} from "./KnotDiagramView.mjs";
+import {P,X} from "./pd.mjs";
 import Q from "./kq.mjs";
 
 const EPSILON = 1e-2;
@@ -1190,16 +1191,27 @@ export class KnotRasterView {
       adj_lists[edge[1]].push(-edge_id-1);
     });
 
+    // replace lists with P and X objects
+    adj_lists = adj_lists.map(list => {
+      if (list.length === 2) {
+        return P.make(...list);
+      } else if (list.length === 4) {
+        return X.make(...list);
+      } else {
+        return assert(false);
+      }
+    });
+
     let diagram = new KnotGraph(verts, edges, adj_lists);
 
     // sort adj_lists
     adj_lists.forEach((list, i) => {
-      if (list.length === 2) {
+      if (list instanceof P) {
         let e0 = diagram.dart_edge(list[0]), e1 = diagram.dart_edge(list[1]);
         assert(e0[2] === e1[2]); // same color
         return;
       }
-      assert(list.length === 4);
+      assert(list instanceof X);
       let vert = verts[i];
       let lverts = list.map(dart => diagram.dart_end(dart));
       // The angles are negative since the coordinate system has inverted y due to the canvas.
@@ -1207,12 +1219,8 @@ export class KnotRasterView {
       function mswap(i, j) {
         /* maybe swap the angle and list arrays, depending on the value of the angle */
         if (angles[i] > angles[j]) {
-          let t_angle = angles[i];
-          angles[i] = angles[j];
-          angles[j] = t_angle;
-          let t_list = list[i];
-          list[i] = list[j];
-          list[j] = t_list;
+          [angles[i], angles[j]] = [angles[j], angles[i]];
+          [list[i], list[j]] = [list[j], list[i]];
         }
       }
       // sorting network
@@ -1252,6 +1260,8 @@ export class KnotRasterView {
     }
 
     // now adj_lists contains correct rotation system for each vertex
+
+    diagram.consistency_check();
 
     // let the diagram choose orientations
     diagram.ensure_orientation();

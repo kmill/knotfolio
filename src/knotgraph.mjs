@@ -1,13 +1,13 @@
 import {assert, remove_value, toString, compare} from "./util.mjs";
 import {Laurent, LTerm} from "./laurent.mjs";
 import {Point, segments_intersect} from "./geom2d.mjs";
-import {PD,P,X,Xp,Xm} from "./pd.mjs";
+import {PD,P,X,Xp,Xm,Virtual} from "./pd.mjs";
 
 export class KnotGraph {
   constructor(verts, edges, adjs) {
     this.verts = verts; // [Point,...]
-    this.edges = edges; // [[vtx, vtx, comp],...]
-    this.adjs = adjs; // [[dart...],...] where dart 0 and 2 are under, 1 and 3 are over
+    this.edges = edges; // [[vtx id, vtx id, comp],...]
+    this.adjs = adjs; // [P or X,...] where the P and X objects contain dart ids
     // a dart is edgeid+1 or -edgeid-1 depending on which side the edge is
   }
 
@@ -17,6 +17,36 @@ export class KnotGraph {
       this.edges.map(edge => edge.slice()),
       this.adjs.map(list => list.slice())
     );
+  }
+
+  consistency_check() {
+    console.log(this);
+    assert(this.verts.length === this.adjs.length);
+    assert(this.verts.every(p => p instanceof Point));
+    assert(this.edges.every(e => e.length >= 3));
+    assert(this.adjs.every(a => a instanceof P || a instanceof X || a instanceof Virtual));
+
+    let seen_darts = new Set();
+    this.adjs.forEach(adj => {
+      adj.forEach(dart => {
+        assert(dart !== 0);
+        assert(Math.abs(dart) - 1 < this.edges.length);
+        seen_darts.add(dart);
+      });
+    });
+    assert(seen_darts.size === 2 * this.edges.length);
+
+    this.edges.forEach((edge, eid) => {
+      assert(0 <= edge[0] && edge[0] < this.verts.length);
+      assert(0 <= edge[1] && edge[1] < this.verts.length);
+      if (this.adjs[edge[0]].includes(eid + 1)) {
+        assert(this.adjs[edge[1]].includes(-eid - 1));
+      } else if (this.adjs[edge[0]].includes(-eid - 1)) {
+        assert(this.adjs[edge[1]].includes(eid + 1));
+      } else {
+        assert(false);
+      }
+    });
   }
   
   ensure_orientation() {
@@ -60,6 +90,7 @@ export class KnotGraph {
     });
     //console.log("seen darts " + seen_darts.size);
     //console.log("edges " + this.edges.length);
+    this.consistency_check();
   }
   
   reverse_orientation(dart_id) {
@@ -85,6 +116,7 @@ export class KnotGraph {
       assert(idx >= 0);
       adj[idx] = dart;
     });
+    this.consistency_check();
   }
   
   make_alternating() {
@@ -102,7 +134,7 @@ export class KnotGraph {
             seen_edges[Math.abs(dart) - 1] = true;
             let vid = this.dart_start(dart);
             let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
-            if (this.adjs[vid].length === 4) {
+            if (this.adjs[vid] instanceof X) {
               this.adjs[vid].forEach(dart => to_see.push(Math.abs(dart) - 1));
               if (sign === this_sign) {
                 this.adjs[vid].push(this.adjs[vid].shift()); // rotate crossing
@@ -120,6 +152,7 @@ export class KnotGraph {
         visit_edges();
       }
     }
+    this.consistency_check();
   }
 
   is_alternating() {
@@ -134,7 +167,7 @@ export class KnotGraph {
           seen_edges[Math.abs(dart) - 1] = true;
           let vid = this.dart_start(dart);
           let this_sign = this.adjs[vid].indexOf(dart) % 2 === 0;
-          if (this.adjs[vid].length === 4) {
+          if (this.adjs[vid] instanceof X) {
             if (sign === this_sign) {
               // Not alternating
               return false;
@@ -160,10 +193,10 @@ export class KnotGraph {
         circ.forEach(d => {
           seen_edges[Math.abs(d) - 1] = true;
         });
-        if (circ.every(d => this.dart_order(d) === 2)) {
+        if (circ.every(d => this.dart_adj(d) instanceof P || this.dart_adj(d) instanceof Virtual)) {
           bridges++;
         } else {
-          circ = circ.filter(d => this.dart_order(d) === 4);
+          circ = circ.filter(d => this.dart_adj(d) instanceof X);
           let j = 0;
           while (j < circ.length && this.dart_is_over(circ[j])) {
             j++;
@@ -262,87 +295,17 @@ export class KnotGraph {
             adj2.push(Math.sign(dart) * (fwd + 1));
           }
         });
-        newadjs.push(adj2);
+        if (adj2.length === 2) {
+          newadjs.push(P.make(...adj2));
+        } else {
+          newadjs.push(adj.constructor.make(...adj2));
+        }
       }
     }
     this.verts = newverts;
     this.edges = newedges;
     this.adjs = newadjs;
-  }
-
-  unsubdivide(vtx_i) {
-    /* Does not check if this operation will leave the diagram in a non-planar state. */
-    assert(this.adjs[vtx_i].length === 2);
-    let dart = Math.abs(this.adjs[vtx_i][0]);
-    if (this.dart_end(dart) !== vtx_i) {
-      dart = Math.abs(this.adjs[vtx_i][1]);
-    }
-    assert(this.dart_end(dart) === vtx_i);
-    let e0 = dart - 1,
-        e1 = this.through_dart(dart) - 1;
-    assert(e1 >= 0);
-    let edge0 = this.edges[e0],
-        edge1 = this.edges[e1];
-    let v2 = this.dart_end(this.through_dart(dart));
-
-    let idx2 = this.adjs[v2].indexOf(this.opp_dart(this.through_dart(dart)));
-    assert(idx2 >= 0);
-
-    edge0[1] = edge1[1];
-    this.adjs[v2][idx2] = this.opp_dart(dart);
-    this.verts[vtx_i] = null;
-    this.adjs[vtx_i] = null;
-    this.edges[e1] = null;
-  }
-
-  simplify_mesh(pixels=2) {
-    /* Simplifies the mesh, unsubdividing edges so long as it doesn't
-       move things more than 1 pixel. Need to run compact afterwards. */
-    let do_remove = true;
-    while (do_remove) {
-      do_remove = false;
-      next_vtx:
-      for (let i = 0; i < this.verts.length; i++) {
-        let pt = this.verts[i];
-        if (pt === null) {
-          continue next_vtx;
-        }
-        let adj = this.adjs[i];
-        if (adj.length === 2) {
-          // calculate length of altitude h of triangle given by vectors pt_0-pt and pt_1-pt.
-          let v0 = this.dart_end(adj[0]),
-              v1 = this.dart_end(adj[1]);
-          let pt_0 = this.verts[v0],
-              pt_1 = this.verts[v1];
-          let w0x = pt_0.x - pt.x,
-              w0y = pt_0.y - pt.y,
-              w1x = pt_1.x - pt.x,
-              w1y = pt_1.y - pt.y,
-              ux = pt_0.x - pt_1.x,
-              uy = pt_0.y - pt_1.y;
-          let cross = w0x*w1y - w1x*w0y;
-          let h = Math.abs(cross) / Math.sqrt(ux*ux + uy*uy);
-
-          if (h <= pixels) {
-            // Will the unsubdivided version run through anything?
-            for (let j = 0; j < this.edges.length; j++) {
-              if (j !== Math.abs(adj[0]) - 1 && j !== Math.abs(adj[1]) - 1) {
-                let edge = this.edges[j];
-                if (edge === null) {
-                  continue;
-                }
-                if (segments_intersect(this.verts[edge[0]], this.verts[edge[1]],
-                                       pt_0, pt_1)) {
-                  continue next_vtx;
-                }
-              }
-            }
-            this.unsubdivide(i);
-            this.do_remove = true;
-          }
-        }
-      }
-    }
+    this.consistency_check();
   }
 
   dart_start(dart_id) {
@@ -359,16 +322,18 @@ export class KnotGraph {
     assert(typeof dart_id === "number");
     return this.edges[Math.abs(dart_id)-1];
   }
+  dart_adj(dart_id) {
+    return this.adjs[this.dart_start(dart_id)];
+  }
   dart_order(dart_id) {
     /* Takes a dart id and returns the number of incident darts at its vertex. */
-    let adj = this.adjs[this.dart_start(dart_id)];
-    return adj.length;
+    return this.dart_adj(dart_id).length;
   }
   dart_is_over(dart_id) {
     /* Assuming the dart id is for a dart at a crossing, gives whether the dart is part of the over-strand. */
     assert(typeof dart_id === "number");
     let adj = this.adjs[this.dart_start(dart_id)];
-    assert(adj.length === 4);
+    assert(adj instanceof X);
     let idx = adj.indexOf(dart_id);
     assert(idx >= 0);
     return (idx % 2) === 1;
@@ -424,11 +389,38 @@ export class KnotGraph {
     } while (d !== dart_id);
     return path;
   }
+  dart_face(dart_id) {
+    /* Takes a dart id and returns the darts that comprise a face of the ribbon graph
+       associated to the (virtual) knot diagram */
+    let path = [];
+    let d = dart_id;
+    do {
+      path.push(d);
+      d = this.opp_dart(d);
+      if (this.dart_adj(d) instanceof Virtual) {
+        d = this.next_dart(this.next_dart(d));
+      } else {
+        d = this.next_dart(d);
+      }
+    } while (d !== dart_id);
+    return path;
+  }
 
   crossing_number() {
     let num = 0;
     this.adjs.forEach(a => {
-      if (a.length === 4) {
+      if (a instanceof X) {
+        num++;
+      }
+    });
+    return num;
+  }
+
+  virtual_crossing_number() {
+    // the number of virtual crossings in this diagram
+    let num = 0;
+    this.adjs.forEach(a => {
+      if (a instanceof Virtual) {
         num++;
       }
     });
@@ -439,7 +431,7 @@ export class KnotGraph {
     /* Gives the total writhe of the diagram. */
     let wr = 0;
     this.adjs.forEach((a, vi) => {
-      if (a.length === 4) {
+      if (a instanceof X) {
         if (this.dart_oriented(a[1]) === this.dart_oriented(a[2])) {
           wr += 1;
         } else {
@@ -468,10 +460,15 @@ export class KnotGraph {
       m2.set(c1, (m2.get(c1)||0) + delta);
     }
     this.adjs.forEach((a, vi) => {
-      if (a.length === 2) {
+      if (a instanceof P) {
         let c = this.dart_edge(a[0])[2];
         ensure_component(c);
-      } else if (a.length === 4) {
+      } else if (a instanceof Virtual) {
+        let c1 = this.dart_edge(a[1])[2],
+            c2 = this.dart_edge(a[2])[2];
+        ensure_component(c1);
+        ensure_component(c2);
+      } else if (a instanceof X) {
         // recall: a[0] is dart for undercrossing
         //  a[2] \ / a[1]
         //        /
@@ -486,6 +483,8 @@ export class KnotGraph {
         } else {
           inc(c1, c2, -1/2);
         }
+      } else {
+        assert(false);
       }
     });
     return matrix;
@@ -514,11 +513,17 @@ export class KnotGraph {
     do {
       circuit.push(d);
       d = this.opp_dart(d);
-      // the following works whether adj.length is 2 or 4
-      if (this.dart_oriented(d) === this.dart_oriented(this.next_dart(d))) {
-        d = this.prev_dart(d);
-      } else {
+      if (this.dart_adj(d) instanceof P) {
         d = this.next_dart(d);
+      } else if (this.dart_adj(d) instanceof Virtual) {
+        d = this.next_dart(this.next_dart(d));
+      } else {
+        assert(this.dart_adj(d) instanceof X);
+        if (this.dart_oriented(d) === this.dart_oriented(this.next_dart(d))) {
+          d = this.prev_dart(d);
+        } else {
+          d = this.next_dart(d);
+        }
       }
     } while (d !== dart);
     return circuit;
@@ -527,6 +532,8 @@ export class KnotGraph {
   genus() {
     /* The canonical Seifert genus of this particular diagram. For
        split diagrams, it is the sum of the genera of each component. */
+
+    assert(this.virtual_genus() === 0);
 
     let seen_darts = new Set();
 
@@ -557,6 +564,27 @@ export class KnotGraph {
       }
     }
     return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
+  }
+
+  virtual_genus() {
+    /* Gives the virtual genus of this particular diagram. Classical
+       knot diagrams have virtual genus 0.  The virtual genus of a
+       virtual knot is the minimum of the virtual genus of all
+       diagrams. */
+    let seen_darts = new Set();
+
+    let nfaces = 0;
+    for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
+      if (!seen_darts.has(edge_i + 1)) {
+        nfaces++;
+        this.dart_face(edge_i + 1).forEach(dart => seen_darts.add(dart));
+      }
+      if (!seen_darts.has(-edge_i - 1)) {
+        nfaces++;
+        this.dart_face(-edge_i - 1).forEach(dart => seen_darts.add(dart));
+      }
+    }
+    return this.num_components() - (nfaces - this.crossing_number())/2;
   }
 
   seifert_form() {
@@ -613,7 +641,7 @@ export class KnotGraph {
           assert(d > 0);
           seen_edges[d - 1] = circ_id;
         });
-        circuit = circuit.filter(d => this.dart_order(d) === 4);
+        circuit = circuit.filter(d => this.dart_adj(d) instanceof X);
         let circuit_adj = [];
         circuits.set(circ_id, circuit_adj);
         circuit.forEach(d => {
@@ -848,13 +876,14 @@ export class KnotGraph {
 
     let matrices = [];
     for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
-      if (this.dart_order(edge_i + 1) === 4 && seen_edges[edge_i] === -1) {
+      if (this.dart_adj(edge_i + 1) instanceof X && seen_edges[edge_i] === -1) {
         matrices.push(visit_component(edge_i));
       }
     }
     // Will be missing trivial unknot diagram components
     for (let edge_i = 0; edge_i < this.edges.length; edge_i++) {
-      if (this.dart_order(edge_i + 1) === 2 && seen_edges[edge_i] === -1) {
+      let adj = this.dart_adj(edge_i + 1);
+      if ((adj instanceof P || adj instanceof Virtual) && seen_edges[edge_i] === -1) {
         matrices.push([]);
         this.dart_circuit(edge_i + 1).forEach(dart => {
           seen_edges[Math.abs(dart) - 1] = true;
@@ -868,6 +897,8 @@ export class KnotGraph {
     /* Returns {genus:g, plus:p, minus:m} where g is the Turaev genus
        of the diagram and p and m are whether the diagram is
        plus-adequate and minus-adequate, respectively. */
+
+    assert(this.virtual_genus() === 0);
 
     let seen_darts = new Set();
 
@@ -911,9 +942,12 @@ export class KnotGraph {
             seen_darts.add(d);
             d = this.opp_dart(d);
             let adj = this.adjs[this.dart_start(d)];
-            if (adj.length === 2) {
+            if (adj instanceof P) {
               d = this.next_dart(d);
+            } else if (adj instanceof Virtual) {
+              d = this.next_dart(this.next_dart(d));
             } else {
+              assert(adj instanceof X);
               if ((adj.indexOf(d) % 2 === 0) === is_black) {
                 d = this.next_dart(d);
               } else {
@@ -953,7 +987,7 @@ export class KnotGraph {
         continue;
       }
       let circuit = this.dart_circuit(i + 1);
-      if (circuit.every(d => this.dart_order(d) === 2)) {
+      if (circuit.every(d => !(this.dart_adj(d) instanceof X))) {
         // then this is a loop
         let arc = next_arc_id++;
         pd.push(P.make(arc, arc));
@@ -963,14 +997,14 @@ export class KnotGraph {
         });
       } else {
         let j = 0;
-        while (this.dart_order(circuit[j]) !== 4) {
+        while (!(this.dart_adj(circuit[j]) instanceof X)) {
           j++;
         }
         circuit = circuit.slice(j).concat(circuit.slice(0, j));
-        // now the first dart is at a crossing (is order 4).
+        // now the first dart is at a crossing
         let arc_id = null;
         circuit.forEach(dart => {
-          if (this.dart_order(dart) === 4) {
+          if (this.dart_adj(dart) instanceof X) {
             arc_id = next_arc_id++;
           }
           dart_arc.set(dart, arc_id);
@@ -979,7 +1013,7 @@ export class KnotGraph {
       }
     }
     this.adjs.forEach(adj => {
-      if (adj.length === 4) {
+      if (adj instanceof X) {
         if (!this.dart_oriented(adj[2])) {
           adj = adj.slice(2).concat(adj.slice(0, 2));
         }
@@ -1001,10 +1035,10 @@ export class KnotGraph {
   get_dt() {
     /* If this is not a knot, return null.  Otherwise, return a
        Dowker-Thistlethwaite code for the knot. */
-    if (this.num_components() !== 1) {
+    if (this.num_components() !== 1 || this.virtual_genus() > 0) {
       return null;
     }
-    let circuit = this.dart_circuit(1).filter(d => this.dart_order(d) === 4);
+    let circuit = this.dart_circuit(1).filter(d => this.dart_adj(d) instanceof X);
     if (circuit.length === 0) {
       return [];
     }
@@ -1043,7 +1077,7 @@ export class KnotGraph {
     for (let k = 0; k < circuit.length; k++) {
       codes.push(code_from(k));
     }
-    circuit = this.dart_circuit(-1).filter(d => this.dart_order(d) === 4);
+    circuit = this.dart_circuit(-1).filter(d => this.dart_adj(d) instanceof X);
     for (let k = 0; k < circuit.length; k++) {
       codes.push(code_from(k));
     }
@@ -1065,7 +1099,7 @@ export class KnotGraph {
 
       let circuit = this.dart_circuit(teid + 1);
 
-      if (circuit.every(d => this.dart_order(d) === 2)) {
+      if (circuit.every(d => this.dart_adj(d) instanceof P)) {
         loops.push(this.edges[teid][2]);
         circuit.forEach(d => seen_edges.add(Math.abs(d) - 1));
         continue;
@@ -1093,7 +1127,7 @@ export class KnotGraph {
           j++;
         }
         circuit = circuit.slice(j).concat(circuit.slice(0, j));
-        // ^ now the first dart is at a crossing (is of order 4).
+        // ^ now the first dart is at a (virtual)crossing (i.e., is of order 4).
         let arc_id = null;
         circuit.forEach(dart => {
           if (this.dart_order(dart) === 4) {
@@ -1134,7 +1168,7 @@ export class KnotGraph {
             // Add in an extra degree-2 vertex so that the graph has no loop edges
             let arc_id = -adj[i];
             let arc_id2 = next_arc_id++;
-            verts.push([arc_id2, -arc_id]);
+            verts.push(P.make(arc_id2, -arc_id));
             adj[i] = -arc_id2;
             if (arc_comps.has(arc_id)) {
               arc_comps.set(arc_id2, arc_comps.get(arc_id));
@@ -1287,7 +1321,7 @@ export class KnotGraph {
         let d2 = dart_remap_over_edge.get(d);
         new_comps.set(d1, comp);
         new_comps.set(d2, comp);
-        new_knot.push([-d1, d2]);
+        new_knot.push(P.make(-d1, d2));
       });
 
       { // check that verts is well-formed
@@ -1298,6 +1332,9 @@ export class KnotGraph {
         }));
         darts.forEach(d => {
           assert(darts.has(-d));
+        });
+        new_knot.forEach(adj => {
+          assert(adj instanceof P || adj instanceof X || adj instanceof Virtual);
         });
       }
 
@@ -1342,8 +1379,8 @@ export class KnotGraph {
         edges.push(eid);
       }
       for (let i = 0; i < SUBDIV; i++) {
-        this.adjs.push([edges[i] + 1,
-                        -edges[(i + SUBDIV - 1) % SUBDIV] - 1]);
+        this.adjs.push(P.make(edges[i] + 1,
+                              -edges[(i + SUBDIV - 1) % SUBDIV] - 1));
       }
 
       col++;
@@ -1531,7 +1568,7 @@ export class KnotGraph {
     });
 
     console.log(this);
-
+    this.consistency_check();
 
   }
 }

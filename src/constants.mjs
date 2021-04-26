@@ -12,6 +12,7 @@ export const ERROR_RADIUS = 6.5; // the radius of the red "error circles"
 export const DIAGRAM_LINE_WIDTH = 3; // the width of the lines when drawing a diagram
 export const CROSSING_GAP = 8; // the gap for drawing crossings
 export const CROSSING_CHANGE_RADIUS = 10; // the radius of the disk shown when hovering over a crossing
+export const VIRTUAL_RADIUS = 8; // the radius for the circle at a virtual crossing
 
 /* Colors for link components */
 export const palette = [

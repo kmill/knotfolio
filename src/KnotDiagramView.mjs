@@ -1,7 +1,8 @@
 import {assert, hex_to_rgb, toString} from "./util.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
+import {P,X,Virtual} from "./pd.mjs";
 import {Point, segment_distance, point_along} from "./geom2d.mjs";
-import {CROSSING_CHANGE_RADIUS, DIAGRAM_LINE_WIDTH, CROSSING_GAP, palette} from "./constants.mjs";
+import {CROSSING_CHANGE_RADIUS, DIAGRAM_LINE_WIDTH, CROSSING_GAP, VIRTUAL_RADIUS, palette} from "./constants.mjs";
 import {KnotRasterView} from "./KnotRasterView.mjs";
 import {get_invariant} from "./invariants.mjs";
 import {Laurent} from "./laurent.mjs";
@@ -13,6 +14,7 @@ let global_tool_state = {
 };
 
 let default_pd_type = "KnotTheory";
+let default_laurent_type = "DOM";
 
 let global_details_states = {
   "linking-matrix": true,
@@ -55,12 +57,12 @@ export class KnotDiagramView {
   }
 
   find_closest_crossing(pt) {
-    /* Returns a vertex id for the diagram, or null */
+    /* Returns a vertex id for the diagram, or null.  Gets a non-P vertex. */
     let diag = this.diagram;
     let dist = CROSSING_CHANGE_RADIUS*this.zoom;
     let closest = null;
     diag.verts.forEach((vert, vid) => {
-      if (diag.adjs[vid].length === 4) {
+      if (!(diag.adjs[vid] instanceof P)) {
         let d = Point.dist(pt, vert);
         if (d <= dist) {
           dist = d;
@@ -140,6 +142,21 @@ export class KnotDiagramView {
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
       }
+    } else if (tool === "virtual-crossing") {
+      let closest = this.find_closest_crossing(pt);
+      if (closest !== null) {
+        let view = this.copy();
+        let adj = view.diagram.adjs[closest];
+        if (adj instanceof X) {
+          view.diagram.adjs[closest] = Virtual.make(...adj);
+        } else if (adj instanceof Virtual) {
+          view.diagram.adjs[closest] = X.make(...adj);
+        } else {
+          assert(false);
+        }
+        undo_stack.push(view);
+        view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
+      }
     } else if (tool === "toggle-orientation") {
       let circuit = this.find_closest_circuit(pt);
       if (circuit !== null) {
@@ -173,6 +190,12 @@ export class KnotDiagramView {
     pt = this.mouse_to_pt(pt);
     let tool = global_tool_state.tool;
     if (tool === "crossing-change") {
+      this.paint(ctxt);
+      let closest = this.find_closest_crossing(pt);
+      if (closest !== null) {
+        this.draw_crossing_disk(ctxt, this.diagram.verts[closest]);
+      }
+    } else if (tool === "virtual-crossing") {
       this.paint(ctxt);
       let closest = this.find_closest_crossing(pt);
       if (closest !== null) {
@@ -224,6 +247,12 @@ export class KnotDiagramView {
         .addClass("icon-button")
         .prop("data-tool", "crossing-change")
         .prop("title", "Change crossing type")
+        .appendTo($tools);
+
+    let $toggle_virtual = Q.span(Q.span({className:"icon24-virtual-crossing"}))
+        .addClass("icon-button")
+        .prop("data-tool", "virtual-crossing")
+        .prop("title", "Toggle virtual crossing")
         .appendTo($tools);
 
     let $toggle_orientation = Q.span(Q.span({className:"icon24-two-arrows"}))
@@ -332,37 +361,13 @@ export class KnotDiagramView {
       canvas.width = this.width;
       canvas.height = this.height;
       let ctxt = canvas.getContext("2d");
-      this.paint(ctxt, false);
+      this.paint(ctxt, false, false);
       let view = new KnotRasterView(this.width, this.height);
       view.fromImage(ctxt.getImageData(0, 0, this.width, this.height));
       undo_stack.push(view);
     });
 
     $div.append(Q.create("h2").append("Isotopy tools"));
-
-/*    let $smooth = Q.create("input")
-        .prop("type", "button")
-        .value("Smooth")
-        .prop("title", "Smooth the diagram a little (not very well)")
-        .appendTo($div);
-    $smooth.on("click", e => {
-      let view = this.copy();
-      view.diagram.smooth();
-      undo_stack.push(view);
-    });*/
-
-    /*
-    let $simplify_mesh = Q.create("input")
-        .prop("type", "button")
-        .value("Simplify mesh")
-        .prop("title", "Simplify the geometry of the diagram")
-        .appendTo($div);
-    $simplify_mesh.on("click", e => {
-      let view = this.copy();
-      view.diagram.simplify_mesh(5);
-      view.diagram.compact();
-      undo_stack.push(view);
-    });*/
 
     let $beautify = Q.create("input")
         .prop("type", "button")
@@ -377,7 +382,32 @@ export class KnotDiagramView {
 
     $div.append(Q.create("hr"));
 
+    let $laurent_types = Q.create("form", {className: "inline-form"},
+                                  Q.create("label",
+                                           Q.create("input", {type: "radio",
+                                                              name: "laurent-type",
+                                                              value: "DOM"}),
+                                           "Pretty"),
+                                  Q.create("label",
+                                           Q.create("input", {type: "radio",
+                                                              name: "laurent-type",
+                                                              value: "Mathematica"}),
+                                           "Mathematica"));
+    $laurent_types[0].elements['laurent-type'].value = default_laurent_type;
+    let laurent_handlers = [];
+    $laurent_types.on("change", function (e) {
+      let name = this.elements['laurent-type'].value;
+      $laurent_types[0].elements['laurent-type'].value = default_laurent_type = name;
+      laurent_handlers.forEach(h => h());
+    });
+    $div.append(Q.create("div", {style: "float: right;"},
+                         $laurent_types));
+
+
     $div.append(Q.create("h2").append("Diagram information"));
+
+    let virtual_crossings = this.diagram.virtual_crossing_number();
+    let virtual_genus = this.diagram.virtual_genus();
 
     let $idiv = Q.create("div").prop("id", "diag-info").appendTo($div);
     {
@@ -388,10 +418,15 @@ export class KnotDiagramView {
                              Q.create("th", "Crossings:"),
                              Q.create("td", ''+this.diagram.crossing_number())));
 
+      if (virtual_crossings > 0) {
+        $table.append(Q.create("tr",
+                               Q.create("th", "Virtual crossings:"),
+                               Q.create("td", ''+virtual_crossings)));
+      }
+
       $table.append(Q.create("tr",
                              Q.create("th", "Components:"),
                              Q.create("td", ''+this.diagram.num_components())));
-
 
       $table.append(Q.create("tr",
                              Q.create("th", "Writhe:"),
@@ -401,28 +436,35 @@ export class KnotDiagramView {
                              Q.create("th", "Bridges:"),
                              Q.create("td", ''+this.diagram.bridge_number())));
 
+      if (virtual_crossings > 0) {
+        $table.append(Q.create("tr", {title: "The virtual genus for this diagram"},
+                               Q.create("th", "Virtual genus:"),
+                               Q.create("td", ''+virtual_genus)));
+      }
 
-      $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
-                             Q.create("th", "Can. genus:"),
-                             Q.create("td", ''+this.diagram.genus())));
-
-      let turaev = this.diagram.turaev();
-      $table.append(Q.create("tr",
-                             Q.create("th", "Turaev genus:"),
-                             Q.create("td", ''+turaev.genus)));
-
+      if (virtual_genus === 0) {
+        $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
+                               Q.create("th", "Can. genus:"),
+                               Q.create("td", ''+this.diagram.genus())));
+      }
 
       let props = [];
       if (diagram.is_alternating()) {
         props.push("alternating");
       }
 
-      if (turaev.plus && turaev.minus) {
-        props.push("adequate");
-      } else if (turaev.plus) {
-        props.push("plus-adequate");
-      } else if (turaev.minus) {
-        props.push("minus-adequate");
+      if (virtual_genus === 0) {
+        let turaev = this.diagram.turaev();
+        $table.append(Q.create("tr",
+                               Q.create("th", "Turaev genus:"),
+                               Q.create("td", ''+turaev.genus)));
+        if (turaev.plus && turaev.minus) {
+          props.push("adequate");
+        } else if (turaev.plus) {
+          props.push("plus-adequate");
+        } else if (turaev.minus) {
+          props.push("minus-adequate");
+        }
       }
 
       $table.append(Q.create("tr",
@@ -454,34 +496,43 @@ export class KnotDiagramView {
       }
     }
 
-    let $sf = Q.create("details",
-                       {title:"There is one Seifert linking matrix per connected component of the diagram."},
-                       Q.create("summary", "Seifert form"))
-        .appendTo($idiv);
+    if (virtual_genus === 0) {
+      let $sf = Q.create("details",
+                         {title:"There is one Seifert linking matrix per connected component of the diagram."},
+                         Q.create("summary", "Seifert form"))
+          .appendTo($idiv);
 
-    attach_details_handler("seifert-matrix", $sf);
+      attach_details_handler("seifert-matrix", $sf);
 
-    //let the_signature = 0;
-    diagram.seifert_form().forEach(matrix => {
-      let $table = Q.create("table", {className:"seifert-matrix"});
-      matrix.forEach(row => {
-        let $tr = Q.create("tr").appendTo($table);
-        row.forEach(c => {
-          $tr.append(Q.create("td", ''+c));
+      //let the_signature = 0;
+      diagram.seifert_form().forEach(matrix => {
+        let $table = Q.create("table", {className:"seifert-matrix"});
+        matrix.forEach(row => {
+          let $tr = Q.create("tr").appendTo($table);
+          row.forEach(c => {
+            $tr.append(Q.create("td", ''+c));
+          });
         });
-      });
-      $sf.append($table);
+        $sf.append($table);
 
-      // // compute A + A^T
-      // let two_cover = matrix.map(row => row.slice());
-      // for (let i = 0; i < matrix.length; i++) {
-      //   for (let j = 0; j < matrix.length; j++) {
-      //     two_cover[i][j] += matrix[j][i];
-      //   }
-      // }
-      //
-      // the_signature += signature(two_cover);
-    });
+        // // compute A + A^T
+        // let two_cover = matrix.map(row => row.slice());
+        // for (let i = 0; i < matrix.length; i++) {
+        //   for (let j = 0; j < matrix.length; j++) {
+        //     two_cover[i][j] += matrix[j][i];
+        //   }
+        // }
+        //
+        // the_signature += signature(two_cover);
+      });
+    }
+
+    // let $sig;
+    // $table.append(Q.create("tr", {title: "The program currently uses floating point arithmetic to compute eigenvalues, hence the warning."},
+    //                        Q.create("th", "Signature:"),
+    //                        $sig = Q.create("td", ''+the_signature+" ",
+    //                                        Q.create("em", "(warning: estimated)"))));
+
 
     let $pd = Q.create("textarea")
         .attr("readonly", true)
@@ -526,16 +577,32 @@ export class KnotDiagramView {
                  .append($pdtypes, Q.create("br"), $pd));
     pd_change(default_pd_type);
 
-    let dt = diagram.get_dt();
-    if (dt) {
-      $idiv.append(Q.create("p", {title: "The Dowker-Thistlethwaite code for the knot."})
-                   .append("DT: " + toString(dt)));
+    if (virtual_genus === 0) {
+      let dt = diagram.get_dt();
+      if (dt) {
+        $idiv.append(Q.create("p", {title: "The Dowker-Thistlethwaite code for the knot."})
+                     .append("DT: " + toString(dt)));
+      }
     }
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       promise.then(poly => {
+        let e = poly.toExpr(variable, exp_divisor);
+        function show_poly() {
+          div.empty();
+          switch (default_laurent_type) {
+          case "DOM":
+            div.append(e.toDOM());
+            break;
+          case "Mathematica":
+          default:
+            div.append(e.toMathematica());
+            break;
+          }
+        }
         if (poly) {
-          div.append(poly.toDOM(variable, exp_divisor));
+          show_poly();
+          laurent_handlers.push(show_poly);
         } else {
           div.append("n/a");
         }
@@ -605,11 +672,6 @@ export class KnotDiagramView {
         $det.append('' + Math.abs(det));
       })();
 
-      // let $sig;
-      // $table.append(Q.create("tr", {title: "The program currently uses floating point arithmetic to compute eigenvalues, hence the warning."},
-      //                        Q.create("th", "Signature:"),
-      //                        $sig = Q.create("td", ''+the_signature+" ",
-      //                                        Q.create("em", "(warning: estimated)"))));
 
 
       let $jones;
@@ -655,12 +717,13 @@ export class KnotDiagramView {
         }
       }
 
-
-      let $conway_poly;
-      $idiv.append(Q.create("p")
-                   .append("Conway potential:")
-                   .append($conway_poly = Q.create("div")));
-      laurent_invariant(get_invariant("conway_poly", diagram), $conway_poly, "z");
+      if (virtual_genus === 0) {
+        let $conway_poly;
+        $idiv.append(Q.create("p")
+                     .append("Conway potential:")
+                     .append($conway_poly = Q.create("div")));
+        laurent_invariant(get_invariant("conway_poly", diagram), $conway_poly, "z");
+      }
 
       let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($idiv);
       (async function () {
@@ -673,7 +736,10 @@ export class KnotDiagramView {
             $alex_polys.append(Q.create("br"));
             $alex_polys.append("\u0394");
             $alex_polys.append(Q.create("sup").append(''+n));
-            $alex_polys.append("(t) = ", poly.toDOM("t"));
+            $alex_polys.append("(t) = "); //, poly.toDOM("t"));
+            let $span = Q.create("span").appendTo($alex_polys);
+            laurent_invariant(new Promise((resolve) => resolve(poly)),
+                              $span);
           }
         } catch (x) {
           $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));
@@ -705,7 +771,7 @@ export class KnotDiagramView {
     return $div;
   }
 
-  paint(ctxt, with_arrows=true) {
+  paint(ctxt, with_arrows=true, with_virtual=true) {
     ctxt.save();
     ctxt.fillStyle = "white";
     ctxt.fillRect(0, 0, this.width, this.height);
@@ -726,9 +792,9 @@ export class KnotDiagramView {
 
       // locate beginning of path
       function opp_is_under(d) {
-        /* Is the  opposite of the dart an under-dart? */
+        /* Is the opposite of the dart an under-dart? */
         d = diag.opp_dart(d);
-        return diag.dart_order(d) === 4 && !diag.dart_is_over(d);
+        return diag.dart_adj(d) instanceof X && !diag.dart_is_over(d);
       }
       // Switch to opposite orientation if needed, then walk until we get to beginning of arc.
       if (diag.dart_start(dart) === diag.dart_edge(dart)[0]) {
@@ -830,6 +896,18 @@ export class KnotDiagramView {
     diag.edges.forEach((e, i) => {
       visit_dart(i+1);
     });
+
+    // draw virtual crossing circles
+    if (with_virtual) {
+      diag.adjs.forEach((adj, vid) => {
+        if (adj instanceof Virtual) {
+          let pt = diag.verts[vid];
+          ctxt.beginPath();
+          ctxt.arc(getX(pt.x)+0.5, getY(pt.y)+0.5, VIRTUAL_RADIUS, 0, 2*Math.PI);
+          ctxt.stroke();
+        }
+      });
+    }
 
     if (0) {
       ctxt.fillStyle = "white";
