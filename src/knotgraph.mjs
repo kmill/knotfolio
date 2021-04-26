@@ -20,7 +20,6 @@ export class KnotGraph {
   }
 
   consistency_check() {
-    console.log(this);
     assert(this.verts.length === this.adjs.length);
     assert(this.verts.every(p => p instanceof Point));
     assert(this.edges.every(e => e.length >= 3));
@@ -1489,13 +1488,11 @@ export class KnotGraph {
       let outside_verts = [];
       part.verts[outside].forEach(dart => {
         let verts = face_darts(part, dart).map(d => vid_of_dart.get(d));
-        console.log(verts);
         let idx = verts.indexOf(outside);
         verts = verts.slice(idx + 1).concat(verts.slice(0, idx));
         verts.pop();
         outside_verts.push(...verts);
       });
-      console.log(outside_verts);
       outside_verts.forEach((vid, i) => {
         is_fixed.add(vid);
         let rowx = new Array(part.verts.length+1).fill(0);
