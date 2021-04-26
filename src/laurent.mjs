@@ -212,7 +212,6 @@ export class Laurent extends SimpleType {
                                   expr.pow(evar,
                                            expr.make_int_const(t.exp, exp_divisor))));
     });
-    console.log(e);
     return e;
   }
 

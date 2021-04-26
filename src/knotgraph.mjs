@@ -501,6 +501,7 @@ export class KnotGraph {
       n++;
       this.dart_circuit(edge_i + 1).forEach(dart => {
         seen_darts.add(dart);
+        seen_darts.add(-dart);
       });
     }
     return n;
@@ -566,6 +567,29 @@ export class KnotGraph {
     return b_0 - (nfaces - this.crossing_number() + this.num_components())/2;
   }
 
+  num_diagram_components() {
+    /* The number of disconnected components of the diagram */
+    let seen_verts = new Set;
+    let b_0 = 0;
+    for (let vid = 0; vid < this.verts.length; vid++) {
+      if (!seen_verts.has(vid)) {
+        b_0++;
+        let to_see = [vid];
+        while (to_see.length > 0) {
+          let vid2 = to_see.pop();
+          if (seen_verts.has(vid2)) {
+            continue;
+          }
+          seen_verts.add(vid2);
+          this.adjs[vid2].forEach(dart => {
+            to_see.push(this.dart_end(dart));
+          });
+        }
+      }
+    }
+    return b_0;
+  }
+
   virtual_genus() {
     /* Gives the virtual genus of this particular diagram. Classical
        knot diagrams have virtual genus 0.  The virtual genus of a
@@ -584,7 +608,7 @@ export class KnotGraph {
         this.dart_face(-edge_i - 1).forEach(dart => seen_darts.add(dart));
       }
     }
-    return this.num_components() - (nfaces - this.crossing_number())/2;
+    return this.num_diagram_components() - (nfaces - this.crossing_number())/2;
   }
 
   seifert_form() {
@@ -1200,32 +1224,33 @@ export class KnotGraph {
   beautify() {
     /* Re-embed using the Tutte embedding of a barycentric subdivision. */
 
-    function barycentric(skel, medial=false) {
-      /* When medial is true, do the medial subdivision rather than the barycentric subdivision. */
-      function face_darts(dart) {
-        let darts = [];
-        let curr_dart = dart;
-        face_loop:
-        while (true) {
-          for (let vid = 0; vid < skel.verts.length; vid++) {
-            let idx = skel.verts[vid].indexOf(-curr_dart);
-            if (idx !== -1) {
-              curr_dart = skel.verts[vid][(idx + skel.verts[vid].length - 1) % skel.verts[vid].length];
-              darts.push(curr_dart);
-              if (curr_dart === dart) {
-                break face_loop;
-              } else {
-                continue face_loop;
-              }
+    function face_darts(skel, dart) {
+      let darts = [];
+      let curr_dart = dart;
+      face_loop:
+      while (true) {
+        for (let vid = 0; vid < skel.verts.length; vid++) {
+          let idx = skel.verts[vid].indexOf(-curr_dart);
+          if (idx !== -1) {
+            curr_dart = skel.verts[vid][(idx + skel.verts[vid].length - 1) % skel.verts[vid].length];
+            darts.push(curr_dart);
+            if (curr_dart === dart) {
+              break face_loop;
+            } else {
+              continue face_loop;
             }
           }
-          throw new Error;
         }
-        return darts;
+        throw new Error;
       }
+      return darts;
+    }
+
+    function barycentric(skel, medial=false) {
+      /* When medial is true, do the medial subdivision rather than the barycentric subdivision. */
       function face_dart(dart) {
         // Get a representative dart for the face
-        return Math.min(...face_darts(dart));
+        return Math.min(...face_darts(skel, dart));
       }
 
       var fresh_dart = 1;
@@ -1296,7 +1321,7 @@ export class KnotGraph {
           }
           seen_faces.add(face);
           let new_vert = [];
-          face_darts(dart).forEach(dart => {
+          face_darts(skel, dart).forEach(dart => {
             // `dart` ranges over darts in face `face`.
             if (!medial) {
               for (let vid = 0; vid < skel.verts.length; vid++) {
@@ -1461,15 +1486,24 @@ export class KnotGraph {
       let matrixx = [];
       let matrixy = [];
       let is_fixed = new Set;
-      part.verts[outside].forEach((dart, i) => {
-        let vid = vid_of_dart.get(-dart);
+      let outside_verts = [];
+      part.verts[outside].forEach(dart => {
+        let verts = face_darts(part, dart).map(d => vid_of_dart.get(d));
+        console.log(verts);
+        let idx = verts.indexOf(outside);
+        verts = verts.slice(idx + 1).concat(verts.slice(0, idx));
+        verts.pop();
+        outside_verts.push(...verts);
+      });
+      console.log(outside_verts);
+      outside_verts.forEach((vid, i) => {
         is_fixed.add(vid);
         let rowx = new Array(part.verts.length+1).fill(0);
         rowx[vid] = 1;
-        rowx[part.verts.length] = Math.cos(2 * Math.PI * i / max_degree);
+        rowx[part.verts.length] = Math.cos(2 * Math.PI * i / outside_verts.length);
         let rowy = new Array(part.verts.length+1).fill(0);
         rowy[vid] = 1;
-        rowy[part.verts.length] = Math.sin(2 * Math.PI * i / max_degree);
+        rowy[part.verts.length] = Math.sin(2 * Math.PI * i / outside_verts.length);
         matrixx.push(rowx);
         matrixy.push(rowy);
       });
