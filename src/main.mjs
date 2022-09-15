@@ -27,14 +27,17 @@ Q(function () {
 
   undo_stack.listeners.push(undo_stack => {
     Q(".undo-state").empty().append(`${undo_stack.i + 1}/${undo_stack.length}`);
-    Q("input.undo").prop("disabled", undo_stack.i <= 0);
-    Q("input.redo").prop("disabled", undo_stack.i + 1 >= undo_stack.length);    
+    Q("input.action-undo").prop("disabled", undo_stack.i <= 0);
+    Q("input.action-redo").prop("disabled", undo_stack.i + 1 >= undo_stack.length);
   });
-  Q("input.undo").on("click", () => {
+  Q("input.action-undo").on("click", () => {
     undo_stack.undo();
   });
-  Q("input.redo").on("click", () => {
+  Q("input.action-redo").on("click", () => {
     undo_stack.redo();
+  });
+  Q("input.action-clear").on("click", () => {
+    undo_stack.push(new KnotRasterView(WIDTH, HEIGHT));
   });
 
   var canvas = Q.create("canvas").appendTo(Q("#editor"));
