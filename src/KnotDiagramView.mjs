@@ -138,7 +138,13 @@ export class KnotDiagramView {
       if (closest !== null) {
         let view = this.copy();
         let adj = view.diagram.adjs[closest];
-        adj.push(adj.shift());
+        if (adj instanceof X) {
+          adj.push(adj.shift());
+        } else if (adj instanceof Virtual) {
+          view.diagram.adjs[closest] = X.make(...adj);
+        } else {
+          assert(false);
+        }
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
       }
