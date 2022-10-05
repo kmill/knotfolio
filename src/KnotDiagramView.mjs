@@ -51,6 +51,11 @@ export class KnotDiagramView {
     return view;
   }
 
+  reset_zoom() {
+    this.c = new Point(0, 0);
+    this.zoom = 1;
+  }
+
   mouse_to_pt(pt) {
     assert(pt instanceof Point);
     return new Point(this.zoom*(pt.x - this.c.x), this.zoom*(pt.y - this.c.y));
@@ -383,6 +388,18 @@ export class KnotDiagramView {
     $beautify.on("click", e => {
       let view = this.copy();
       view.diagram.beautify();
+      view.reset_zoom();
+      undo_stack.push(view);
+    });
+
+    let $reset_zoom = Q.create("input")
+        .prop("type", "button")
+        .value("Reset view")
+        .prop("title", "Reset center of diagram and zoom level")
+        .appendTo($div);
+    $reset_zoom.on("click", e => {
+      let view = this.copy();
+      view.reset_zoom();
       undo_stack.push(view);
     });
 
