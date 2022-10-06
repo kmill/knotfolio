@@ -40,6 +40,7 @@ export class KnotDiagramView {
 
     this.c = new Point(0, 0);
     this.zoom = 1;
+    this.moving = null; // if we are currently translating the diagram, is a Point
 
     this.mode_name = "Diagrams"; // constant
   }
@@ -138,6 +139,11 @@ export class KnotDiagramView {
   mousedown(pt, e, undo_stack, ctxt) {
     pt = this.mouse_to_pt(pt);
     let tool = global_tool_state.tool;
+    if (this.moving) {
+      tool = "";
+    }
+    // In each tool, fall-through means the view movement tool should take over.
+    // An explicit return is necessary to prevent this.
     if (tool === "crossing-change") {
       let closest = this.find_closest_crossing(pt);
       if (closest !== null) {
@@ -152,6 +158,7 @@ export class KnotDiagramView {
         }
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
+        return;
       }
     } else if (tool === "virtual-crossing") {
       let closest = this.find_closest_crossing(pt);
@@ -167,6 +174,7 @@ export class KnotDiagramView {
         }
         undo_stack.push(view);
         view.draw_crossing_disk(ctxt, view.diagram.verts[closest]);
+        return;
       }
     } else if (tool === "toggle-orientation") {
       let circuit = this.find_closest_circuit(pt);
@@ -175,6 +183,7 @@ export class KnotDiagramView {
         view.diagram.reverse_orientation(circuit[0]);
         undo_stack.push(view);
         view.highlight_circuit(ctxt, circuit);
+        return;
       }
     } else if (tool === "delete-component") {
       let circuit = this.find_closest_circuit(pt);
@@ -182,6 +191,7 @@ export class KnotDiagramView {
         let view = this.copy();
         view.diagram.delete_component(circuit[0]);
         undo_stack.push(view);
+        return;
       }
     } else if (tool.startsWith("set-color-")) {
       let color = +tool.slice("set-color-".length);
@@ -194,11 +204,24 @@ export class KnotDiagramView {
         });
         undo_stack.push(view);
         view.highlight_circuit(ctxt, circuit);
+        return;
       }
+    }
+    // Fell through, so set up view translation.
+    if (e.button === 0) {
+      this.moving = pt;
     }
   }
   mousemove(pt, e, undo_stack, ctxt) {
     pt = this.mouse_to_pt(pt);
+    if (this.moving) {
+      let old_c = this.c.copy();
+      this.c.x += (pt.x - this.moving.x) / this.zoom;
+      this.c.y += (pt.y - this.moving.y) / this.zoom;
+      this.paint(ctxt);
+      this.c = old_c;
+      return;
+    }
     let tool = global_tool_state.tool;
     if (tool === "crossing-change") {
       this.paint(ctxt);
@@ -234,9 +257,20 @@ export class KnotDiagramView {
   }
   mouseup(pt, e, undo_stack, ctxt) {
     pt = this.mouse_to_pt(pt);
+    if (this.moving) {
+      this.c.x += (pt.x - this.moving.x) / this.zoom;
+      this.c.y += (pt.y - this.moving.y) / this.zoom;
+      this.moving = null;
+      this.paint(ctxt);
+      return;
+    }
     let tool = global_tool_state.tool;
   }
   mousewheel(pt, e, undo_stack, ctxt) {
+    if (this.moving) {
+      // Let's not try interleaving these operations
+      return;
+    }
     let delta = Math.sign(e.deltaY);
     let kpt = this.mouse_to_pt(pt);
     this.zoom *= Math.pow(1.05, delta);
