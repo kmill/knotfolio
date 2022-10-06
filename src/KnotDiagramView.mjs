@@ -561,27 +561,35 @@ export class KnotDiagramView {
 
       attach_details_handler("seifert-matrix", $sf);
 
-      //let the_signature = 0;
-      diagram.seifert_form().forEach(matrix => {
-        let $table = Q.create("table", {className:"seifert-matrix"});
-        matrix.forEach(row => {
-          let $tr = Q.create("tr").appendTo($table);
-          row.forEach(c => {
-            $tr.append(Q.create("td", ''+c));
-          });
-        });
-        $sf.append($table);
+      let $sf_div = Q.create("div").appendTo($sf);
 
-        // // compute A + A^T
-        // let two_cover = matrix.map(row => row.slice());
-        // for (let i = 0; i < matrix.length; i++) {
-        //   for (let j = 0; j < matrix.length; j++) {
-        //     two_cover[i][j] += matrix[j][i];
-        //   }
-        // }
-        //
-        // the_signature += signature(two_cover);
-      });
+      function mk_seifert_matrix() {
+        $sf_div.empty();
+        switch (default_laurent_type) {
+        case "DOM":
+          diagram.seifert_form().forEach(matrix => {
+            let $table = Q.create("table", {className:"seifert-matrix"});
+            matrix.forEach(row => {
+              let $tr = Q.create("tr").appendTo($table);
+              row.forEach(c => {
+                $tr.append(Q.create("td", ''+c));
+              });
+            });
+            $sf_div.append($table);
+          });
+          break;
+        case "Mathematica":
+        default:
+          diagram.seifert_form().forEach(matrix => {
+            let m = '{' + matrix.map(row => '{' + row.map(c => ''+c).join(', ') + '}').join(', ') + '}';
+            $sf_div.append(Q.create('div').append(m));
+          });
+          break;
+        }
+      }
+
+      mk_seifert_matrix();
+      laurent_handlers.push(mk_seifert_matrix);
     }
 
     // let $sig;
