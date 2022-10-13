@@ -39,6 +39,7 @@ export class TLTerm {
   constructor(coeff, paths) {
     this.coeff = coeff;
     this.paths = paths;
+    this.normalized = false;
   }
   static make(coeff, paths) {
     return new this(coeff, paths);
@@ -56,6 +57,9 @@ export class TLTerm {
   }*/
   normalize() {
     /* In-place normalization of the TLTerm. */
+    if (this.normalized) {
+      return this;
+    }
     let coeff = this.coeff,
         paths = this.paths;
     let i = 0;
@@ -89,6 +93,7 @@ export class TLTerm {
 
     paths.sort((p1, p2) => p1[0] - p2[0]); // this is lexicographic since all edge indices are different
 
+    this.normalized = true;
     return this;
   }
 }
@@ -115,7 +120,9 @@ export class TL extends SimpleType {
       if (sum.length === 0) {
         this.splice(i, j-i);
       } else {
-        term.coeff = sum;
+        term = TLTerm.make(sum, term.paths);
+        term.normalized = true;
+        this[i] = term;
         if (j-i-1 > 0) {
           this.splice(i+1, j-i-1);
         }
@@ -143,5 +150,5 @@ export class TL extends SimpleType {
     return tl.normalize();
   }
 }
-TL.unit = TL.make(TLTerm.make(Laurent.unit, []));
-TL.loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2);
+TL.unit = TL.make(TLTerm.make(Laurent.unit, [])).normalize();
+TL.loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2).normalize();
