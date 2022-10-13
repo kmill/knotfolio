@@ -3,7 +3,7 @@
 // Uses the Seifert matrix to calculate it directly.
 
 import {assert, compare} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 import {Poly} from "./poly.mjs";
 import {RatFun} from "./ratfun.mjs";
 import {det} from "./matrix.mjs";
@@ -108,8 +108,8 @@ define_invariant("conway_poly", async function (mt, diagram) {
     }
     if (-pre_poly.minexp() === i) {
       let zpow = zpows[i];
-      let c = pre_poly[0].coeff / zpow[0].coeff;
-      conway = conway.add(Laurent.incl(c).simple_mul(1, i));
+      let c = pre_poly._coeffs[0] / zpow._coeffs[0];
+      conway = conway.add(Laurent.fromCoeffs([c], i));
       pre_poly = pre_poly.add(Laurent.incl(-c).mul(zpow));
     }
   }

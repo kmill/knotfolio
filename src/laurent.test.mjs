@@ -1,5 +1,5 @@
 import {assert, assert_fails, test, equal} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 
 test("laurent", () => {
   let p = Laurent.t.add(Laurent.tinv).negate();
@@ -7,7 +7,7 @@ test("laurent", () => {
 
   assert(p.mul(p).toListString() === "[-2; 1,0,2,0,1]");
 
-  let loop = Laurent.make(LTerm.make(-1,-2), LTerm.make(-1,2)).normalize();
+  let loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2);
   assert(loop.equal(loop));
   assert(loop.toListString() === "[-2; -1,0,0,0,-1]");
   assert(loop.div_by_loop().toListString() === "[0; 1]");

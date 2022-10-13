@@ -3,7 +3,7 @@ import {PD,X,P,Xp,Xm} from "./pd.mjs";
 import {Laurent} from "./laurent.mjs";
 import {get_invariant} from "./invariants.mjs";
 import "./jones.mjs";
-import * as knotinfo from "./knotinfo.mjs";
+//import * as knotinfo from "./knotinfo.mjs";
 
 test_async("kauffman", async function() {
 
@@ -14,7 +14,7 @@ test_async("kauffman", async function() {
                                    PD.make(X.make(1,3,6,4), X.make(3,5,2,6), X.make(5,1,4,2)));
   assert(equal(k31_kb, Laurent.fromCoeffs([1,0,0,0,-1,0,0,0,0,0,0,0,-1],-7)));
 });
-
+/*
 test_async("jones knotinfo", async function () {
   for (let i = 0; i < knotinfo.data.length; i++) {
     let link = knotinfo.data[i];
@@ -50,3 +50,4 @@ test_async("jones knotinfo", async function () {
     }
   }
 });
+*/

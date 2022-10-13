@@ -1,7 +1,7 @@
 // Free group algebra
 
 import {assert, SimpleType, compare} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 
 export class FGWord extends SimpleType {
   /* A FGWord is gen,exp,gen,exp,... where the exponents are numbers
@@ -193,15 +193,15 @@ export class FGA extends SimpleType {
 
   toLaurent() {
     /* Assumes g |-> t is a homomorphism and gives the image. */
-    let p = Laurent.make();
+    let p = Laurent.zero;
     this.forEach(term => {
       let exp = 0;
       for (let i = 0; i < term[1].length; i += 2) {
         exp += term[1][i+1];
       }
-      p.push(LTerm.make(term[0], exp));
+      p = p.add(Laurent.fromCoeffs([term[0]], exp));
     });
-    return p.normalize();
+    return p;
   }
 }
 FGA.zero = FGA.make();

@@ -1,7 +1,7 @@
 // Jones polynomial
 
 import {assert, remove_value} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 import {PD, X, Xp, Xm} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
@@ -98,12 +98,14 @@ define_invariant("jones_poly", async function (mt, diagram) {
 
   let normalized_kb = kb.simple_mul(Math.pow(-1, wr), -3*wr);
   // The following polynomial is in T=t^2.
-  let jp = new Laurent();
-  for (let i = normalized_kb.length - 1; i >= 0; i--) {
-    let term = normalized_kb[i];
-    let new_exp = -term.exp/2;
-    assert(new_exp === Math.floor(new_exp));
-    jp.push(new LTerm(term.coeff, new_exp));
+  let jp = Laurent.zero;
+  for (let i = normalized_kb._coeffs.length - 1; i >= 0; i--) {
+    let coeff = normalized_kb._coeffs[i];
+    if (coeff !== 0) {
+      let new_exp = -(normalized_kb._offset + i)/2;
+      assert(new_exp === (0|new_exp));
+      jp = jp.add(Laurent.fromCoeffs([coeff], new_exp));
+    }
   }
   return jp;
 

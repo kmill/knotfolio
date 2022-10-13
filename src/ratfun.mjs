@@ -2,7 +2,7 @@
 
 import {assert, SimpleType} from "./util.mjs";
 import {Poly} from "./poly.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 
 export class RatFun {
   constructor (p, q) {

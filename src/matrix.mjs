@@ -1,5 +1,5 @@
 import {assert} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 import {eigenvalues} from "./eigenvalues.mjs";
 
 export function det(NumberSystem, matrix) {

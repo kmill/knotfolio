@@ -1,5 +1,5 @@
 import {assert, remove_value, toString, compare} from "./util.mjs";
-import {Laurent, LTerm} from "./laurent.mjs";
+import {Laurent} from "./laurent.mjs";
 import {Point, segments_intersect} from "./geom2d.mjs";
 import {PD,P,X,Xp,Xm,Virtual} from "./pd.mjs";
 
