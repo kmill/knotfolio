@@ -2,55 +2,38 @@
 
 import {assert, remove_value} from "./util.mjs";
 import {Laurent} from "./laurent.mjs";
-import {PD, X, Xp, Xm} from "./pd.mjs";
+import {PD, X, P, Virtual, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id, pd_form_cabling, pd_to_tangle} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
 
-define_invariant("kauffman_bracket", async function (mt, pd) {
-  if (!(pd instanceof PD)) {
-    return await get_invariant("kauffman_bracket", pd.get_pd());
-  }
-
-  if (pd.length === 0) {
-    return null;
-  }
+function sort_pd_heuristic(pd) {
+  /* Sorts the entities in the PD so that each entity is chosen to minimize the next frontier. */
+  assert(pd instanceof PD);
   pd = pd.slice();
 
   let frontier = [];
-  let bracket = TL.unit;
-  while (pd.length > 0) {
-    await mt.next_turn();
+  let sorted = [];
 
-    // find "best" next entity, using the most-in-frontier heuristic
-    let best_count = -1;
+  while (pd.length > 0) {
+    // find "best" next entity, using the least-new-frontier heuristic
+    let best_delta = Infinity;
     let best_eid = null;
     pd.forEach((entity, eid) => {
-      let count = 0;
+      let delta = entity.length;
       entity.forEach(i => {
         if (frontier.indexOf(i) !== -1) {
-          count++;
+          delta -= 2;
         }
       });
-      if (count > best_count) {
-        best_count = count;
+      if (delta < best_delta) {
+        best_delta = delta;
         best_eid = eid;
       }
     });
     let entity = pd[best_eid];
+    sorted.push(entity);
     pd.splice(best_eid, 1);
-    let tl = null;
-    if (entity.length === 2) {
-      let [a, b] = entity;
-      tl = new TL(new TLTerm(Laurent.unit, [new TLPath(a, b)]));
-    } else {
-      let [a, b, c, d] = entity;
-      tl = new TL(new TLTerm(Laurent.t, [new TLPath(a, b),
-                                         new TLPath(c, d)]),
-                  new TLTerm(Laurent.tinv, [new TLPath(a, d),
-                                            new TLPath(b, c)]));
-    }
-    bracket = bracket.mul(tl);
 
     // update frontier
     entity.forEach(i => {
@@ -59,14 +42,71 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
       }
     });
   }
-  assert(bracket.length <= 1);
-  if (bracket.length === 0) {
-    return Laurent.zero;
-  } else {
-    assert(bracket[0].paths.length === 0);
-    return bracket[0].coeff.div_by_loop();
+  return sorted;
+}
+
+function mk_tl_P(a,b) {
+  return TL.make(TLTerm.make(Laurent.unit, [TLPath.make(a, b)])).normalize();
+}
+
+function mk_tl_X(a,b,c,d) {
+  return TL.make(TLTerm.make(Laurent.t, [TLPath.make(a, b),
+                                         TLPath.make(c, d)]),
+                 TLTerm.make(Laurent.tinv, [TLPath.make(a, d),
+                                            TLPath.make(b, c)])).normalize();
+}
+
+define_invariant("kauffman_bracket", async function (mt, pd) {
+  if (!(pd instanceof PD)) {
+    return await get_invariant("kauffman_bracket", pd.get_pd());
   }
+
+  let tangle = pd_to_tangle(pd);
+
+  if (tangle === null) {
+    return null;
+  }
+
+  pd = sort_pd_heuristic(tangle.pd);
+
+  let bracket = TL.unit;
+
+  for (let i = 0; i < pd.length; i++) {
+    if (i % 2 === 0) await mt.next_turn();
+    let entity = pd[i];
+
+    if (entity.constructor === P) {
+      bracket = bracket.mul(mk_tl_P(entity[0], entity[1]));
+    } else if (entity.constructor === Virtual) {
+      bracket = bracket.mul(mk_tl_P(entity[0], entity[2]));
+      bracket = bracket.mul(mk_tl_P(entity[1], entity[3]));
+    } else {
+      // Otherwise it should be an X, Xp, or Xm
+      bracket = bracket.mul(mk_tl_X(entity[0], entity[1], entity[2], entity[3]));
+    }
+  }
+
+  assert(bracket.length === 1); // the kauffman bracket never vanishes
+  assert(bracket[0].paths.length === 1); // path corresponds to tangle.boundary
+  return bracket[0].coeff;
 });
+
+function kb_to_jones(kb) {
+  /* Given a normalized Kauffman bracket (a Laurent polynomial) return
+     the corresponding Jones polynomial. */
+
+  // The following polynomial is in T=t^2.
+  let jp = Laurent.zero;
+  for (let i = 0; i < kb._coeffs.length; i++) {
+    let coeff = kb._coeffs[i];
+    if (coeff !== 0) {
+      let new_exp = -(kb._offset + i)/2;
+      assert(new_exp === (0|new_exp));
+      jp = jp.add(Laurent.fromCoeffs([coeff], new_exp));
+    }
+  }
+  return jp;
+}
 
 define_invariant("jones_poly", async function (mt, diagram) {
   /* Computes the Jones polynomial from a KnotGraph (or an oriented
@@ -97,16 +137,25 @@ define_invariant("jones_poly", async function (mt, diagram) {
   }
 
   let normalized_kb = kb.simple_mul(Math.pow(-1, wr), -3*wr);
-  // The following polynomial is in T=t^2.
-  let jp = Laurent.zero;
-  for (let i = normalized_kb._coeffs.length - 1; i >= 0; i--) {
-    let coeff = normalized_kb._coeffs[i];
-    if (coeff !== 0) {
-      let new_exp = -(normalized_kb._offset + i)/2;
-      assert(new_exp === (0|new_exp));
-      jp = jp.add(Laurent.fromCoeffs([coeff], new_exp));
-    }
-  }
-  return jp;
+  return kb_to_jones(normalized_kb);
+});
 
+define_invariant("cabled_jones_poly", async function (mt, diagram, cables) {
+  /* Computes the cabeled Jones polynomial from a KnotGraph (or an oriented
+     PD). Returns a polynomial in A=t^-4, or null for the empty diagram. */
+  assert(cables > 0);
+  if (diagram instanceof KnotGraph) {
+    diagram = diagram.get_pd(true);
+  }
+  assert(diagram instanceof PD);
+
+  if (diagram.length === 0) {
+    return null;
+  }
+
+  let kb = await get_invariant("kauffman_bracket", pd_form_cabling(diagram, cables));
+  if (kb === null) {
+    return null;
+  }
+  return kb; // we are using the Kauffman bracket parameterization
 });

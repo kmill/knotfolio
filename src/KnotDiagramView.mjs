@@ -651,6 +651,7 @@ export class KnotDiagramView {
     }
 
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
+      div.append(Q.create("em", "calculating..."));
       promise.then(poly => {
         let e = poly.toExpr(variable, exp_divisor);
         function show_poly() {
@@ -738,12 +739,30 @@ export class KnotDiagramView {
       })();
 
 
+      let next_cjones = 1;
 
-      let $jones;
+      let $nextJones = Q.create("input")
+          .prop("type", "button")
+          .value("Next")
+          .prop("title", "Compute next cabled Jones polynomial");
+      $nextJones.on("click", e => {
+        do_cjones(next_cjones++);
+      });
+
+      let $jones = Q.create("div");
       $idiv.append(Q.create("p")
-                   .append("Jones polynomial:")
-                   .append($jones = Q.create("div")));
-      laurent_invariant(get_invariant('jones_poly', this.diagram), $jones, "t", 2);
+                   .append("(Cabled) Jones polynomials: ")
+                   .append($nextJones)
+                   .append($jones));
+
+      const do_cjones = (i) => {
+        next_cjones = i + 1;
+        let $cj = Q.create("span");
+        $jones.append(Q.create("div").append("V", Q.create("sub", i), " = ", $cj));
+        laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", -4);
+      };
+
+      do_cjones(1);
 
       if (0) {
         let wp = get_invariant(this.diagram, 'wirtinger_presentation');
