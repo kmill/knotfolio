@@ -845,7 +845,7 @@ export class KnotDiagramView {
           let $tr = Q.create("tr").appendTo($table);
           row.forEach(entry => {
             let $td = Q.create("td").appendTo($tr);
-            $td.append(entry.toDOM("t"));
+            $td.append(entry.toExpr("t").toDOM());
           });
         });
         $alex_mod.append($table);
