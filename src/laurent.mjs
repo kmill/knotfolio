@@ -151,7 +151,7 @@ export class Laurent {
     return this._coeffs.slice();
   }
   static fromCoeffs(coeffs, offset=0) {
-    return new Laurent(offset, coeffs.slice());
+    return new Laurent(offset, coeffs.slice()).normalize();
   }
 
   minexp() {

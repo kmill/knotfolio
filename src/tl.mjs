@@ -39,10 +39,11 @@ export class TLTerm {
   constructor(coeff, paths) {
     this.coeff = coeff;
     this.paths = paths;
-    this.normalized = false;
   }
   static make(coeff, paths) {
-    return new this(coeff, paths);
+    /* Create a normalized TLTerm. */
+    let term = new this(coeff, paths);
+    return term.normalize();
   }
   toString() {
     return "TLTerm.make(" + this.coeff + ", " + toString(this.paths) + ")";
@@ -57,9 +58,6 @@ export class TLTerm {
   }*/
   normalize() {
     /* In-place normalization of the TLTerm. */
-    if (this.normalized) {
-      return this;
-    }
     let coeff = this.coeff,
         paths = this.paths;
     let i = 0;
@@ -93,13 +91,10 @@ export class TLTerm {
 
     paths.sort((p1, p2) => p1[0] - p2[0]); // this is lexicographic since all edge indices are different
 
-    this.normalized = true;
     return this;
   }
   scale(c) {
-    let term = TLTerm.make(this.coeff.mul(c), this.paths);
-    term = this.normalize();
-    return term;
+    return new TLTerm(this.coeff.mul(c), this.paths);
   }
 }
 
@@ -110,7 +105,10 @@ export class TL extends SimpleType {
   }
   normalize() {
     /* In-place normalization of the TL. */
-    this.forEach(term => term.normalize());
+
+    // each TLTerm is assumed to be pre-normalized
+    // this.forEach(term => term.normalize());
+
     this.sort((term1, term2) => compare(term1.paths, term2.paths));
 
     let i = 0;
@@ -127,9 +125,7 @@ export class TL extends SimpleType {
       } else if (j === i + 1) {
         i++;
       } else {
-        term = TLTerm.make(sum, term.paths);
-        term.normalized = true;
-        this[i] = term;
+        this[i] = new TLTerm(sum, term.paths);
         if (j-i-1 > 0) {
           this.splice(i+1, j-i-1);
         }
@@ -156,9 +152,7 @@ export class TL extends SimpleType {
       if (comp === 0) {
         let coeff = t1.coeff.add(t2.coeff);
         if (!coeff.is_zero()) {
-          let term = TLTerm.make(coeff, t1.paths);
-          term.normalized = true;
-          result.push(term);
+          result.push(new TLTerm(coeff, t1.paths));
         }
         i1++;
         i2++;
@@ -189,8 +183,8 @@ export class TL extends SimpleType {
       return this.map(term => term.scale(c));
     }
     let result = this.map(term =>
-                          new TLTerm(term.coeff.mul(c),
-                                     term.paths.concat(paths)));
+                          TLTerm.make(term.coeff.mul(c),
+                                      term.paths.concat(paths)));
     return result.normalize();
   }
 
@@ -209,5 +203,5 @@ export class TL extends SimpleType {
   }
 }
 TL.zero = TL.make();
-TL.unit = TL.make(TLTerm.make(Laurent.unit, [])).normalize();
-TL.loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2).normalize();
+TL.unit = TL.make(TLTerm.make(Laurent.unit, []));
+TL.loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2);
