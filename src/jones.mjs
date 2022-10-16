@@ -1,22 +1,24 @@
 // Jones polynomial
 
-import {assert, remove_value} from "./util.mjs";
+import {assert, remove_value, toString} from "./util.mjs";
 import {Laurent} from "./laurent.mjs";
 import {PD, X, P, Virtual, Xp, Xm, pd_eliminate_paths, pd_writhe_normalize, pd_first_free_id, pd_form_cabling, pd_to_tangle} from "./pd.mjs";
 import {KnotGraph} from "./knotgraph.mjs";
 import {TL, TLTerm, TLPath} from "./tl.mjs";
 import {get_invariant, define_invariant} from "./invariants.mjs";
 
-function sort_pd_heuristic(pd) {
+function sort_pd_heuristic(pd, boundary=null) {
   /* Sorts the entities in the PD so that each entity is chosen to minimize the next frontier. */
   assert(pd instanceof PD);
   pd = pd.slice();
+  //console.log("pre-sorted:", toString(pd));
 
-  let frontier = [];
+  let frontier = boundary ? boundary.slice() : [];
   let sorted = [];
 
   while (pd.length > 0) {
     // find "best" next entity, using the least-new-frontier heuristic
+    //console.log("frontier:", toString(frontier));
     let best_delta = Infinity;
     let best_eid = null;
     pd.forEach((entity, eid) => {
@@ -34,6 +36,7 @@ function sort_pd_heuristic(pd) {
     let entity = pd[best_eid];
     sorted.push(entity);
     pd.splice(best_eid, 1);
+    //console.log("best:", toString(entity));
 
     // update frontier
     entity.forEach(i => {
@@ -42,6 +45,7 @@ function sort_pd_heuristic(pd) {
       }
     });
   }
+  //console.log("sorted:", toString(sorted));
   return sorted;
 }
 
@@ -67,7 +71,7 @@ define_invariant("kauffman_bracket", async function (mt, pd) {
     return null;
   }
 
-  pd = sort_pd_heuristic(tangle.pd);
+  pd = sort_pd_heuristic(tangle.pd, [tangle.boundary[0]]);
 
   let bracket = TL.unit;
 
