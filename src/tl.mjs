@@ -96,6 +96,11 @@ export class TLTerm {
     this.normalized = true;
     return this;
   }
+  scale(c) {
+    let term = TLTerm.make(this.coeff.mul(c), this.paths);
+    term = this.normalize();
+    return term;
+  }
 }
 
 export class TL extends SimpleType {
@@ -117,8 +122,10 @@ export class TL extends SimpleType {
         sum = sum.add(this[j].coeff);
         j++;
       }
-      if (sum.length === 0) {
+      if (sum.is_zero()) {
         this.splice(i, j-i);
+      } else if (j === i + 1) {
+        i++;
       } else {
         term = TLTerm.make(sum, term.paths);
         term.normalized = true;
@@ -135,20 +142,72 @@ export class TL extends SimpleType {
 
   add(tl2) {
     assert(tl2 instanceof TL);
-    return this.concat(tl2).normalize();
+    // Reference implementation:
+    // return this.concat(tl2).normalize();
+
+    let tl1 = this;
+    let i1 = 0, i2 = 0;
+    let result = new TL();
+
+    while (i1 < tl1.length && i2 < tl2.length) {
+      let t1 = tl1[i1], t2 = tl2[i2];
+
+      let comp = compare(t1.paths, t2.paths);
+      if (comp === 0) {
+        let coeff = t1.coeff.add(t2.coeff);
+        if (!coeff.is_zero()) {
+          let term = TLTerm.make(coeff, t1.paths);
+          term.normalized = true;
+          result.push(term);
+        }
+        i1++;
+        i2++;
+      } else if (comp < 0) {
+        result.push(t1);
+        i1++;
+      } else {
+        result.push(t2);
+        i2++;
+      }
+    }
+    while (i1 < tl1.length) {
+      result.push(tl1[i1]);
+      i1++;
+    }
+    while (i2 < tl2.length) {
+      result.push(tl2[i2]);
+      i2++;
+    }
+    return result;
+  }
+
+  scale(c, paths) {
+    if (c.is_zero()) {
+      return TL.zero;
+    }
+    if (paths.length === 0) {
+      return this.map(term => term.scale(c));
+    }
+    let result = this.map(term =>
+                          new TLTerm(term.coeff.mul(c),
+                                     term.paths.concat(paths)));
+    return result.normalize();
   }
 
   mul(tl2) {
+    /* Multiplies this with tl2. Should run faster if tl2 is "smaller" */
     assert(tl2 instanceof TL);
     let tl = TL.make();
-    this.forEach(term1 => {
-      tl2.forEach(term2 => {
-        tl.push(TLTerm.make(term1.coeff.mul(term2.coeff),
-                            term1.paths.concat(term2.paths)));
-      });
+    tl2.forEach(term2 => {
+      tl = tl.add(this.scale(term2.coeff, term2.paths));
     });
-    return tl.normalize();
+    // In other order:
+    /*this.forEach(term1 => {
+      tl = tl.add(tl2.scale(term1.coeff, term1.paths));
+    });*/
+    return tl;
   }
 }
+TL.zero = TL.make();
 TL.unit = TL.make(TLTerm.make(Laurent.unit, [])).normalize();
 TL.loop = Laurent.fromCoeffs([-1,0,0,0,-1], -2).normalize();
