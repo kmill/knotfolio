@@ -441,11 +441,13 @@ export class KnotDiagramView {
 
     let $laurent_types = Q.create("form", {className: "inline-form"},
                                   Q.create("label",
+                                           {title: "Pretty print data using fancy HTML"},
                                            Q.create("input", {type: "radio",
                                                               name: "laurent-type",
                                                               value: "DOM"}),
                                            "Pretty"),
                                   Q.create("label",
+                                           {title: "Print data in a Mathematica-compatible format"},
                                            Q.create("input", {type: "radio",
                                                               name: "laurent-type",
                                                               value: "Mathematica"}),
