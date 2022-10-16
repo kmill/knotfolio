@@ -8,6 +8,8 @@ import {get_invariant} from "./invariants.mjs";
 import {Laurent} from "./laurent.mjs";
 import Q from "./kq.mjs";
 import {signature} from "./matrix.mjs";
+import {arrow_varnames} from "./atl.mjs";
+import * as expr from "./expr.mjs";
 
 let global_tool_state = {
   tool: "crossing-change"
@@ -681,6 +683,40 @@ export class KnotDiagramView {
       });
     }
 
+    function mlaurent_invariant(promise, div, variables, exp_divisor=1) {
+      div.append(Q.create("em", "calculating..."));
+      promise.then(poly => {
+        let split = expr.make_int_const(0);
+        poly.coeffs().forEach(pair => {
+          split = expr.plus(split,
+                            expr.times(pair[0].toExpr(variables, exp_divisor),
+                                       pair[1].toExpr(variables)));
+        });
+        function show_poly() {
+          div.empty();
+          switch (default_laurent_type) {
+          case "DOM":
+            div.append(split.toDOM());
+            break;
+          case "Mathematica":
+          default:
+            div.append(split.toMathematica());
+            break;
+          }
+        }
+        if (poly) {
+          show_poly();
+          laurent_handlers.push(show_poly);
+        } else {
+          div.append("n/a");
+        }
+      }, err => {
+        console.log(err);
+        div.addClass("calc-error");
+        div.append('Error: '+err);
+      });
+    }
+
     var $kb_div;
     $idiv.append(Q.create("p")
                  .append("Kauffman bracket:")
@@ -765,6 +801,38 @@ export class KnotDiagramView {
       };
 
       do_cjones(1);
+
+      let next_carrow = 1;
+
+      let $next_carrow = Q.create("input")
+          .prop("type", "button")
+          .value("Next")
+          .prop("title", "Compute next cabled Arrow polynomial");
+      $next_carrow.on("click", e => {
+        do_carrow(next_carrow++);
+      });
+
+      let $carrow = Q.create("div");
+      $idiv.append(Q.create("p")
+                   .append("(Cabled) Arrow polynomials: ")
+                   .append($next_carrow)
+                   .append($carrow));
+
+      const do_carrow = (i) => {
+        next_carrow = i + 1;
+        let $cj = Q.create("span");
+        $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
+        function arrow_varnames_t(i) {
+          if (i === 0) {
+            return "t";
+          } else {
+            return "K" + i;
+          }
+        }
+        mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
+      };
+
+      do_carrow(1);
 
       if (0) {
         let wp = get_invariant(this.diagram, 'wirtinger_presentation');

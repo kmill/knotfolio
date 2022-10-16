@@ -1,6 +1,7 @@
 import {get_invariant, define_invariant} from "./invariants.mjs";
 import "./jones.mjs";
 import "./alexander.mjs";
+import "./arrow.mjs";
 import {assert, equal} from "./util.mjs";
 import * as knotdata from "./knotdata.mjs";
 
