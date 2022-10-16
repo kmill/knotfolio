@@ -802,37 +802,42 @@ export class KnotDiagramView {
 
       do_cjones(1);
 
-      let next_carrow = 1;
+      if (virtual_genus > 0) {
 
-      let $next_carrow = Q.create("input")
-          .prop("type", "button")
-          .value("Next")
-          .prop("title", "Compute next cabled Arrow polynomial");
-      $next_carrow.on("click", e => {
-        do_carrow(next_carrow++);
-      });
+        let next_carrow = 1;
 
-      let $carrow = Q.create("div");
-      $idiv.append(Q.create("p")
-                   .append("(Cabled) Arrow polynomials: ")
-                   .append($next_carrow)
-                   .append($carrow));
+        let $next_carrow = Q.create("input")
+            .prop("type", "button")
+            .value("Next")
+            .prop("title", "Compute next cabled Arrow polynomial");
+        $next_carrow.on("click", e => {
+          do_carrow(next_carrow++);
+        });
 
-      const do_carrow = (i) => {
-        next_carrow = i + 1;
-        let $cj = Q.create("span");
-        $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
-        function arrow_varnames_t(i) {
-          if (i === 0) {
-            return "t";
-          } else {
-            return "K" + i;
+        let $carrow = Q.create("div");
+        $idiv.append(Q.create("p")
+                     .append("(Cabled) Arrow polynomials: ")
+                     .append($next_carrow)
+                     .append($carrow));
+
+        const do_carrow = (i) => {
+          next_carrow = i + 1;
+          let $cj = Q.create("span");
+          $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
+          function arrow_varnames_t(i) {
+            if (i === 0) {
+              return "t";
+            } else {
+              return "K" + i;
+            }
           }
-        }
-        mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
-      };
+          mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
+        };
 
-      do_carrow(1);
+        do_carrow(1);
+
+      }
+
 
       if (0) {
         let wp = get_invariant(this.diagram, 'wirtinger_presentation');
