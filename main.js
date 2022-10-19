@@ -4699,6 +4699,19 @@ class MLaurent extends SimpleType {
     return split;
   }
 
+  mirror() {
+    /* Flip the first variable, for taking mirror image of arrow polynomial */
+
+    let res = MLaurent.zero;
+    for (var term of this.terms()) {
+      if (term.exps.length > 0) {
+        term.exps[0] = -term.exps[0];
+      }
+      res = res.add(MLaurent.make(term.exps.length, term.coeff, ...term.exps));
+    }
+    return res;
+  }
+
   static x(n, exp=1) {
     assert(n === (0|n) && n >= 0);
     let result = new MLaurent();
@@ -5109,6 +5122,9 @@ define_invariant("cabled_arrow_poly", async function (mt, diagram, cables) {
   return ab;
 });
 
+/* Added to a file's GET request to help override browser cache. */
+const file_version = 2;
+
 /* The knot table.  As tables are loaded, this array is populated with
  * knot data.  The key is the knot name (accd to KnotInfo/LinkInfo) */
 const table = new Map;
@@ -5124,12 +5140,12 @@ var requested_files = [];
 /* A list of callbacks waiting on things being loaded */
 var waiting = [];
 
-function mk_table_loader_key(components, crossing_number, property) {
-  return "/" + components + "/" + crossing_number + "/" + property;
+function mk_table_loader_key(db, components, crossing_number, property) {
+  return "/" + db + "/" + components + "/" + crossing_number + "/" + property;
 }
 
-function get_table_loader_entry(components, crossing_number, property) {
-  let key = mk_table_loader_key(components, crossing_number, property);
+function get_table_loader_entry(db, components, crossing_number, property) {
+  let key = mk_table_loader_key(db, components, crossing_number, property);
   let entry = table_loaders[key];
   if (!entry) {
     entry = table_loaders[key] = {
@@ -5140,12 +5156,12 @@ function get_table_loader_entry(components, crossing_number, property) {
   return entry;
 }
 
-self.provides_knot_data = function (file, components, crossing_numbers, properties) {
+self.provides_knot_data = function (file, db, components, crossing_numbers, properties) {
   /* Declare a file as being able to provide some knot data. */
   crossing_numbers.forEach(crossing_number => {
     components.forEach(comps => {
       properties.forEach(property => {
-        let entry = get_table_loader_entry(comps, crossing_number, property);
+        let entry = get_table_loader_entry(db, comps, crossing_number, property);
         if (!entry.loaded && !entry.file) {
           entry.file = file;
         }
@@ -5154,17 +5170,17 @@ self.provides_knot_data = function (file, components, crossing_numbers, properti
   });
 };
 
-self.loaded_knot_data = function (components, crossing_numbers, properties) {
+self.loaded_knot_data = function (db, components, crossing_numbers, properties) {
   /* Record that some knot data has been loaded, to notify anyone who might be waiting for it. */
   crossing_numbers.forEach(crossing_number => {
     components.forEach(comps => {
       properties.forEach(property => {
-        let entry = get_table_loader_entry(comps, crossing_number, property);
+        let entry = get_table_loader_entry(db, comps, crossing_number, property);
         entry.loaded = true;
       });
     });
   });
-  console.log("Loaded knot data crossings=%s; components=%s; properties=%s", crossing_numbers.join(','), components.join(','), properties.join(','));
+  console.log("Loaded knot data db=%s; crossings=%s; components=%s; properties=%s", db, crossing_numbers.join(','), components.join(','), properties.join(','));
 
   // Update keys for waiting things
   var to_notify = [];
@@ -5179,14 +5195,14 @@ self.loaded_knot_data = function (components, crossing_numbers, properties) {
   to_notify.forEach(callback => callback());
 };
 
-self.add_knot_data = function (properties, data) {
+self.add_knot_data = function (db, properties, data) {
   /* Add data to the knot table.  (Does not notify anyone about the loaded data.  Use `loaded_knot_data`). */
 
   for (let i = 0; i < data.length; i += 1 + properties.length) {
     let name = data[i];
     let entry = table.get(name);
     if (!entry) {
-      entry = {name: name};
+      entry = {name: name, db: db};
       table.set(name, entry);
     }
     properties.forEach((property, j) => {
@@ -5195,7 +5211,7 @@ self.add_knot_data = function (properties, data) {
   }
 };
 
-function needed_files(components, crossing_number, properties) {
+function needed_files(db, components, crossing_number, properties) {
   /* Get a list of filenames that still need to be loaded. The `incomplete` key
    refers to whether there are no data files that satisfy the request . */
   let files = [];
@@ -5203,13 +5219,13 @@ function needed_files(components, crossing_number, properties) {
   let missing_entries = [];
   for (let c = 0; c <= crossing_number; c++) {
     properties.forEach(property => {
-      let entry = get_table_loader_entry(components, c, property);
+      let entry = get_table_loader_entry(db, components, c, property);
       if (entry.file) {
         if (!entry.loaded) {
           if (!files.includes(entry.file)) {
             files.push(entry.file);
           }
-          missing_entries.push(mk_table_loader_key(components, c, property));
+          missing_entries.push(mk_table_loader_key(db, components, c, property));
         }
       } else {
         incomplete = true;
@@ -5228,24 +5244,24 @@ function load_data(filename) {
   if (!requested_files.includes(filename)) {
     requested_files.push(filename);
     let tag = document.createElement("script");
-    tag.src = filename;
+    tag.src = filename + "?v=" + file_version;
     tag.type = "text/javascript";
     tag.async = true;
     document.getElementsByTagName('head')[0].appendChild(tag);
   }
 }
 
-function get_knots(components, crossings, properties) {
+function get_knots(db, components, crossings, properties) {
   /* Get list of all knots/links with at most the given number of crossings */
 
   // First determine which files to load (if any)
-  let needed = needed_files(components, crossings, properties);
+  let needed = needed_files(db, components, crossings, properties);
   console.log(needed);
 
   function _get_knots(resolve) {
     let knots = [];
     table.forEach(knot => {
-      if (knot.components === components && knot.crossing_number <= crossings) {
+      if (knot.db === db && knot.components === components && knot.crossing_number <= crossings) {
         knots.push(knot);
       }
     });
@@ -5272,13 +5288,41 @@ self.get_knots = get_knots;
 
 define_invariant("identify_link", async function (mt, diagram) {
   let max_crossing = diagram.crossing_number();
-  let is_virtual = diagram.virtual_genus() > 0;
+  let is_virtual = diagram.virtual_crossing_number() > 0;
 
   let names = [];
   let incomplete = false;
 
   if (is_virtual) {
+    let alex_poly = await get_invariant('alexander_poly', diagram);
+    let arrow1 = await get_invariant('cabled_arrow_poly', diagram, 1);
+    let arrow2 = await get_invariant('cabled_arrow_poly', diagram, 2);
+
     incomplete = true;
+
+    let table = await get_knots("green", diagram.num_components(), max_crossing,
+                                         ["alexander", "arrow1", "arrow2"]);
+    incomplete = table.incomplete;
+
+    let alex_coeffs = alex_poly.coeffs();
+    let arrowA = [[...arrow1], [...arrow2]];
+    let arrowB = [[...arrow1.mirror()], [...arrow2.mirror()]];
+
+    let options = table.knots.filter(o => {
+      let matches = equal(alex_coeffs, o.alexander);
+      let arrowO = [o.arrow1, o.arrow2];
+      matches = matches && (equal(arrowA, arrowO) || equal(arrowB, arrowO));
+      return matches;
+    });
+
+    names = options.map(o => {
+      let obj = {name: o.name};
+      if (o.crossing_number <= 4) {
+        obj.katlas = "https://www.math.toronto.edu/drorbn/Students/GreenJ/" + o.name + ".html";
+      }
+      return obj;
+    });
+
   } else {
     let conway_poly = await get_invariant('conway_poly', diagram);
     let conway_coeffs = [conway_poly.minexp()].concat(conway_poly.coeffs());
@@ -5293,7 +5337,7 @@ define_invariant("identify_link", async function (mt, diagram) {
     let jones_coeffs = jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [0];
     let jones_coeffs_rev = [-jones_coeffs.length + 2 - jones_coeffs[0]].concat(jones_coeffs.slice(1).reverse());
 
-    let table = await get_knots(diagram.num_components(), max_crossing,
+    let table = await get_knots("knotinfo", diagram.num_components(), max_crossing,
                                          ["conway", "jones"]);
     incomplete = table.incomplete;
 
@@ -5841,7 +5885,7 @@ class KnotDiagramView {
                                Q.create("td", ''+virtual_genus)));
       }
 
-      if (virtual_genus === 0) {
+      if (virtual_crossings === 0) {
         $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
                                Q.create("th", "Can. genus:"),
                                Q.create("td", ''+this.diagram.genus())));
