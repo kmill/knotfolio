@@ -1,3 +1,6 @@
+/* Added to a file's GET request to help override browser cache. */
+const file_version = 2;
+
 /* The knot table.  As tables are loaded, this array is populated with
  * knot data.  The key is the knot name (accd to KnotInfo/LinkInfo) */
 const table = new Map;
@@ -117,7 +120,7 @@ function load_data(filename) {
   if (!requested_files.includes(filename)) {
     requested_files.push(filename);
     let tag = document.createElement("script");
-    tag.src = filename;
+    tag.src = filename + "?v=" + file_version;
     tag.type = "text/javascript";
     tag.async = true;
     document.getElementsByTagName('head')[0].appendChild(tag);
