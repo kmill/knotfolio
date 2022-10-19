@@ -173,6 +173,19 @@ export class MLaurent extends SimpleType {
     return split;
   }
 
+  mirror() {
+    /* Flip the first variable, for taking mirror image of arrow polynomial */
+
+    let res = MLaurent.zero;
+    for (var term of this.terms()) {
+      if (term.exps.length > 0) {
+        term.exps[0] = -term.exps[0];
+      }
+      res = res.add(MLaurent.make(term.exps.length, term.coeff, ...term.exps));
+    }
+    return res;
+  }
+
   static x(n, exp=1) {
     assert(n === (0|n) && n >= 0);
     let result = new MLaurent();

@@ -7,13 +7,41 @@ import * as knotdata from "./knotdata.mjs";
 
 define_invariant("identify_link", async function (mt, diagram) {
   let max_crossing = diagram.crossing_number();
-  let is_virtual = diagram.virtual_genus() > 0;
+  let is_virtual = diagram.virtual_crossing_number() > 0;
 
   let names = [];
   let incomplete = false;
 
   if (is_virtual) {
+    let alex_poly = await get_invariant('alexander_poly', diagram);
+    let arrow1 = await get_invariant('cabled_arrow_poly', diagram, 1);
+    let arrow2 = await get_invariant('cabled_arrow_poly', diagram, 2);
+
     incomplete = true;
+
+    let table = await knotdata.get_knots("green", diagram.num_components(), max_crossing,
+                                         ["alexander", "arrow1", "arrow2"]);
+    incomplete = table.incomplete;
+
+    let alex_coeffs = alex_poly.coeffs();
+    let arrowA = [[...arrow1], [...arrow2]];
+    let arrowB = [[...arrow1.mirror()], [...arrow2.mirror()]];
+
+    let options = table.knots.filter(o => {
+      let matches = equal(alex_coeffs, o.alexander);
+      let arrowO = [o.arrow1, o.arrow2];
+      matches = matches && (equal(arrowA, arrowO) || equal(arrowB, arrowO));
+      return matches;
+    });
+
+    names = options.map(o => {
+      let obj = {name: o.name};
+      if (o.crossing_number <= 4) {
+        obj.katlas = "https://www.math.toronto.edu/drorbn/Students/GreenJ/" + o.name + ".html";
+      }
+      return obj;
+    });
+
   } else {
     let conway_poly = await get_invariant('conway_poly', diagram);
     let conway_coeffs = [conway_poly.minexp()].concat(conway_poly.coeffs());
@@ -28,7 +56,7 @@ define_invariant("identify_link", async function (mt, diagram) {
     let jones_coeffs = jones_poly ? [jones_poly.minexp()].concat(jones_poly.coeffs()) : [0];
     let jones_coeffs_rev = [-jones_coeffs.length + 2 - jones_coeffs[0]].concat(jones_coeffs.slice(1).reverse());
 
-    let table = await knotdata.get_knots(diagram.num_components(), max_crossing,
+    let table = await knotdata.get_knots("knotinfo", diagram.num_components(), max_crossing,
                                          ["conway", "jones"]);
     incomplete = table.incomplete;
 

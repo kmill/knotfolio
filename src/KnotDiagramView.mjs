@@ -503,7 +503,7 @@ export class KnotDiagramView {
                                Q.create("td", ''+virtual_genus)));
       }
 
-      if (virtual_genus === 0) {
+      if (virtual_crossings === 0) {
         $table.append(Q.create("tr", {title: "The canonical Seifert genus for this diagram"},
                                Q.create("th", "Can. genus:"),
                                Q.create("td", ''+this.diagram.genus())));
