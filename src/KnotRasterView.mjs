@@ -15,7 +15,8 @@ const EPSILON = 1e-2;
 let global_painting_state = {
   mode: "pencil",
   color: 1,
-  go_over: 1
+  go_over: 1,
+  calculate_invariants: true
 };
 
 export class KnotRasterView {
@@ -26,6 +27,7 @@ export class KnotRasterView {
     this.height = height;
     this.buffer = new Int8Array(this.width * this.height);
     this.temp = new Int8Array(this.width * this.height);
+    this.calculate_invariants = global_painting_state.calculate_invariants;
 
     this.mode_name = "Painting"; // constant
     this.next_knot = null;
@@ -34,6 +36,7 @@ export class KnotRasterView {
   copy() {
     let kb = new KnotRasterView(this.width, this.height);
     kb.buffer.set(this.buffer);
+    kb.calculate_invariants = this.calculate_invariants;
     return kb;
   }
 
@@ -284,6 +287,16 @@ export class KnotRasterView {
                 .on("click", e => {
                   undo_stack.push(this.convert());
                 }));
+    $div.append(Q.create("br"));
+    $div.append(Q.create("label", {title: "Calculate invariants and identify the knot."
+                                          + " Unchecking this turns off potentially expensive computations."},
+                         Q.create("input", {type: "checkbox",
+                                            checked: this.calculate_invariants})
+                         .on("click", e => {
+                           this.calculate_invariants = e.target.checked;
+                           global_painting_state.calculate_invariants = this.calculate_invariants;
+                         }),
+                         " Calculate invariants"));
 
     if (this.the_error) {
       let $error = Q.div({className: "error"},
@@ -1266,6 +1279,6 @@ export class KnotRasterView {
     // let the diagram choose orientations
     diagram.ensure_orientation();
 
-    return new KnotDiagramView(this.width, this.height, diagram);
+    return new KnotDiagramView(this.width, this.height, diagram, this.calculate_invariants);
   }
 }

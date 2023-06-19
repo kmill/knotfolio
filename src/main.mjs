@@ -44,7 +44,7 @@ Q(function () {
   canvas.prop("width", WIDTH);
   canvas.prop("height", HEIGHT);
 
-  var ctxt = canvas[0].getContext('2d');
+  var ctxt = canvas[0].getContext('2d', {willReadFrequently: true});
   undo_stack.listeners.push(undo_stack => {
     Q(".modename").empty().append(undo_stack.get().mode_name);
     undo_stack.get().paint(ctxt);
