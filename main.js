@@ -5415,23 +5415,28 @@ function attach_details_handler(name, $details) {
 }
 
 class KnotDiagramView {
-  constructor(width, height, diagram) {
+  constructor(width, height, diagram, calculate_invariants) {
     assert(width > 0);
     assert(height > 0);
     assert(diagram instanceof KnotGraph);
     this.width = width;
     this.height = height;
     this.diagram = diagram;
+    this.calculate_invariants = calculate_invariants;
 
     this.c = new Point(0, 0);
     this.zoom = 1;
     this.moving = null; // if we are currently translating the diagram, is a Point
 
-    this.mode_name = "Diagrams"; // constant
+    if (this.calculate_invariants) {
+      this.mode_name = "Diagrams"; // constant
+    } else {
+      this.mode_name = "Diagrams (no invariants)";
+    }
   }
 
-  copy() {
-    let view = new KnotDiagramView(this.width, this.height, this.diagram.copy());
+  copy(calculate_invariants) {
+    let view = new KnotDiagramView(this.width, this.height, this.diagram.copy(), this.calculate_invariants || calculate_invariants);
     view.c = this.c.copy();
     view.zoom = this.zoom;
     return view;
@@ -6039,7 +6044,7 @@ class KnotDiagramView {
     function laurent_invariant(promise, div, variable="t", exp_divisor=1) {
       div.append(Q.create("em", "calculating..."));
       promise.then(poly => {
-        let e = poly.toExpr(variable, exp_divisor);
+        let e = null;
         function show_poly() {
           div.empty();
           switch (default_laurent_type) {
@@ -6053,10 +6058,11 @@ class KnotDiagramView {
           }
         }
         if (poly) {
+          e = poly.toExpr(variable, exp_divisor);
           show_poly();
           laurent_handlers.push(show_poly);
         } else {
-          div.append("n/a");
+          div.empty().append("n/a");
         }
       }, err => {
         console.log(err);
@@ -6099,176 +6105,192 @@ class KnotDiagramView {
       });
     }
 
-    var $kb_div;
-    $idiv.append(Q.create("p")
-                 .append("Kauffman bracket:")
-                 .append($kb_div = Q.create("div")));
-    laurent_invariant(get_invariant("kauffman_bracket", this.diagram), $kb_div, "A");
-
-    $idiv.append(Q.create("h2").append("Identification"));
-    let $ident = Q.create("p").appendTo($idiv);
-    get_invariant('identify_link', this.diagram).then(
-      res => {
-        if (res.names.length === 0) {
-          $ident.append("Unknown link");
-        } else {
-          $ident.append("Candidates: ");
-          res.names.forEach((c, i) => {
-            if (i > 0) {
-              $ident.append(", ");
-            }
-            if (c.katlas) {
-              $ident.append(Q.create("a", {href: c.katlas,
-                                           target: "_blank"},
-                                     c.name));
-            } else {
-              $ident.append(c.name);
-            }
-          });
-        }
-        if (res.incomplete) {
-          $ident.append(" (warning: possibly incomplete)");
-        }
-      },
-      err => {
-        console.error(err);
-        $ident.addClass("calc-error");
-        $ident.append('Error: '+err);
-      }
-    );
-
-    $idiv.append(Q.create("h2").append("Invariants"));
-
-    {
-      let $table = Q.create("table", {className:"diag-props"});
-      $idiv.append($table);
-
-      let $det;
-      $table.append(Q.create("tr",
-                             Q.create("th", "Determinant:"),
-                             $det = Q.create("td")));
-
-      (async function () {
-        let poly = await get_invariant("alexander_poly", diagram, 0);
-        let coeffs = poly.coeffs();
-        let det = 0;
-        for (let i = 0; i < coeffs.length; i++) {
-          det += coeffs[i] * (2 * (i % 2) - 1);
-        }
-        $det.append('' + Math.abs(det));
-      })();
-
-
-      let next_cjones = 1;
-
-      let $nextJones = Q.create("input")
-          .prop("type", "button")
-          .value("Next")
-          .prop("title", "Compute next cabled Jones polynomial");
-      $nextJones.on("click", e => {
-        do_cjones(next_cjones++);
-      });
-
-      let $jones = Q.create("div");
+    if (this.calculate_invariants) {
+      var $kb_div;
       $idiv.append(Q.create("p")
-                   .append("(Cabled) Jones polynomials: ")
-                   .append($nextJones)
-                   .append($jones));
+                   .append("Kauffman bracket:")
+                   .append($kb_div = Q.create("div")));
+      laurent_invariant(get_invariant("kauffman_bracket", this.diagram), $kb_div, "A");
+    }
 
-      const do_cjones = (i) => {
-        next_cjones = i + 1;
-        let $cj = Q.create("span");
-        $jones.append(Q.create("div").append("V", Q.create("sub", i), " = ", $cj));
-        laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", -4);
-      };
+    if (this.calculate_invariants) {
+      $idiv.append(Q.create("h2").append("Identification"));
+      let $ident = Q.create("p").appendTo($idiv);
+      get_invariant('identify_link', this.diagram).then(
+        res => {
+          if (res.names.length === 0) {
+            $ident.append("Unknown link");
+          } else {
+            $ident.append("Candidates: ");
+            res.names.forEach((c, i) => {
+              if (i > 0) {
+                $ident.append(", ");
+              }
+              if (c.katlas) {
+                $ident.append(Q.create("a", {href: c.katlas,
+                                             target: "_blank"},
+                                       c.name));
+              } else {
+                $ident.append(c.name);
+              }
+            });
+          }
+          if (res.incomplete) {
+            $ident.append(" (warning: possibly incomplete)");
+          }
+        },
+        err => {
+          console.error(err);
+          $ident.addClass("calc-error");
+          $ident.append('Error: '+err);
+        }
+      );
+    }
 
-      do_cjones(1);
+    if (this.calculate_invariants) {
+      $idiv.append(Q.create("h2").append("Invariants"));
 
-      if (virtual_genus > 0) {
+      {
+        let $table = Q.create("table", {className:"diag-props"});
+        $idiv.append($table);
 
-        let next_carrow = 1;
+        let $det;
+        $table.append(Q.create("tr",
+                               Q.create("th", "Determinant:"),
+                               $det = Q.create("td")));
 
-        let $next_carrow = Q.create("input")
+        (async function () {
+          let poly = await get_invariant("alexander_poly", diagram, 0);
+          let coeffs = poly.coeffs();
+          let det = 0;
+          for (let i = 0; i < coeffs.length; i++) {
+            det += coeffs[i] * (2 * (i % 2) - 1);
+          }
+          $det.append('' + Math.abs(det));
+        })();
+
+
+        let next_cjones = 1;
+
+        let $nextJones = Q.create("input")
             .prop("type", "button")
             .value("Next")
-            .prop("title", "Compute next cabled Arrow polynomial");
-        $next_carrow.on("click", e => {
-          do_carrow(next_carrow++);
+            .prop("title", "Compute next cabled Jones polynomial");
+        $nextJones.on("click", e => {
+          do_cjones(next_cjones++);
         });
 
-        let $carrow = Q.create("div");
+        let $jones = Q.create("div");
         $idiv.append(Q.create("p")
-                     .append("(Cabled) Arrow polynomials: ")
-                     .append($next_carrow)
-                     .append($carrow));
+                     .append("(Cabled) Jones polynomials: ")
+                     .append($nextJones)
+                     .append($jones));
 
-        const do_carrow = (i) => {
-          next_carrow = i + 1;
+        const do_cjones = (i) => {
+          next_cjones = i + 1;
           let $cj = Q.create("span");
-          $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
-          function arrow_varnames_t(i) {
-            if (i === 0) {
-              return "t";
-            } else {
-              return "K" + i;
-            }
-          }
-          mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
+          $jones.append(Q.create("div").append("V", Q.create("sub", i), " = ", $cj));
+          laurent_invariant(get_invariant('cabled_jones_poly', this.diagram, i), $cj, "t", -4);
         };
 
-        do_carrow(1);
+        do_cjones(1);
 
-      }
+        if (virtual_genus > 0) {
 
-      if (virtual_genus === 0) {
-        let $conway_poly;
-        $idiv.append(Q.create("p")
-                     .append("Conway potential:")
-                     .append($conway_poly = Q.create("div")));
-        laurent_invariant(get_invariant("conway_poly", diagram), $conway_poly, "z");
-      }
+          let next_carrow = 1;
 
-      let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($idiv);
-      (async function () {
-        try {
-          for (let n = 0; ; n++) {
-            let poly = await get_invariant("alexander_poly", diagram, n);
-            if (n >= 1 && poly.equal(Laurent.unit)) {
-              break;
-            }
-            $alex_polys.append(Q.create("br"));
-            $alex_polys.append("\u0394");
-            $alex_polys.append(Q.create("sup").append(''+n));
-            $alex_polys.append("(t) = "); //, poly.toDOM("t"));
-            let $span = Q.create("span").appendTo($alex_polys);
-            laurent_invariant(new Promise((resolve) => resolve(poly)),
-                              $span);
-          }
-        } catch (x) {
-          $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));
-          throw x;
-        }
-      })();
-
-      let $alex_mod = Q.create("details",
-                               {title:"Mildly simplified (not normalized since Z[t,t^-1] is not a PID)"},
-                               Q.create("summary", "An Alexander module presentation matrix:"))
-          .appendTo($idiv);
-      attach_details_handler("alexander-module", $alex_mod);
-      (async function () {
-        let matrix = await get_invariant('alexander_module', diagram);
-        let $table = Q.create("table").addClass("alexander-matrix");
-        matrix.forEach(row => {
-          let $tr = Q.create("tr").appendTo($table);
-          row.forEach(entry => {
-            let $td = Q.create("td").appendTo($tr);
-            $td.append(entry.toExpr("t").toDOM());
+          let $next_carrow = Q.create("input")
+              .prop("type", "button")
+              .value("Next")
+              .prop("title", "Compute next cabled Arrow polynomial");
+          $next_carrow.on("click", e => {
+            do_carrow(next_carrow++);
           });
-        });
-        $alex_mod.append($table);
-        $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
-      })();
 
+          let $carrow = Q.create("div");
+          $idiv.append(Q.create("p")
+                       .append("(Cabled) Arrow polynomials: ")
+                       .append($next_carrow)
+                       .append($carrow));
+
+          const do_carrow = (i) => {
+            next_carrow = i + 1;
+            let $cj = Q.create("span");
+            $carrow.append(Q.create("div").append("A", Q.create("sub", i), " = ", $cj));
+            function arrow_varnames_t(i) {
+              if (i === 0) {
+                return "t";
+              } else {
+                return "K" + i;
+              }
+            }
+            mlaurent_invariant(get_invariant('cabled_arrow_poly', this.diagram, i), $cj, arrow_varnames_t, -4);
+          };
+
+          do_carrow(1);
+
+        }
+
+        if (virtual_genus === 0) {
+          let $conway_poly;
+          $idiv.append(Q.create("p")
+                       .append("Conway potential:")
+                       .append($conway_poly = Q.create("div")));
+          laurent_invariant(get_invariant("conway_poly", diagram), $conway_poly, "z");
+        }
+
+        let $alex_polys = Q.create("p").append("Alexander polynomials:").appendTo($idiv);
+        (async function () {
+          try {
+            for (let n = 0; ; n++) {
+              let poly = await get_invariant("alexander_poly", diagram, n);
+              if (n >= 1 && poly.equal(Laurent.unit)) {
+                break;
+              }
+              $alex_polys.append(Q.create("br"));
+              $alex_polys.append("\u0394");
+              $alex_polys.append(Q.create("sup").append(''+n));
+              $alex_polys.append("(t) = "); //, poly.toDOM("t"));
+              let $span = Q.create("span").appendTo($alex_polys);
+              laurent_invariant(new Promise((resolve) => resolve(poly)),
+                                $span);
+            }
+          } catch (x) {
+            $alex_polys.append(Q.create("div", {className: "calc-error"}, ''+x));
+            throw x;
+          }
+        })();
+
+        let $alex_mod = Q.create("details",
+                                 {title:"Mildly simplified (not normalized since Z[t,t^-1] is not a PID)"},
+                                 Q.create("summary", "An Alexander module presentation matrix:"))
+            .appendTo($idiv);
+        attach_details_handler("alexander-module", $alex_mod);
+        (async function () {
+          let matrix = await get_invariant('alexander_module', diagram);
+          let $table = Q.create("table").addClass("alexander-matrix");
+          matrix.forEach(row => {
+            let $tr = Q.create("tr").appendTo($table);
+            row.forEach(entry => {
+              let $td = Q.create("td").appendTo($tr);
+              $td.append(entry.toExpr("t").toDOM());
+            });
+          });
+          $alex_mod.append($table);
+          $alex_mod.append(Q.create("em").append("(" + matrix.length + " generator(s))"));
+        })();
+
+      }
+    } else {
+      //$idiv.append(Q.create("br"));
+      let $calc = Q.create("input")
+          .prop("type", "button")
+          .value("Calculate invariants")
+          .prop("title", "Calculate invariants and identify the knot or link")
+          .appendTo($idiv);
+      $calc.on("click", e => {
+        undo_stack.push(this.copy(true));
+      });
     }
     
     return $div;
@@ -6423,7 +6445,8 @@ const EPSILON = 1e-2;
 let global_painting_state = {
   mode: "pencil",
   color: 1,
-  go_over: 1
+  go_over: 1,
+  calculate_invariants: true
 };
 
 class KnotRasterView {
@@ -6434,6 +6457,7 @@ class KnotRasterView {
     this.height = height;
     this.buffer = new Int8Array(this.width * this.height);
     this.temp = new Int8Array(this.width * this.height);
+    this.calculate_invariants = global_painting_state.calculate_invariants;
 
     this.mode_name = "Painting"; // constant
     this.next_knot = null;
@@ -6442,6 +6466,7 @@ class KnotRasterView {
   copy() {
     let kb = new KnotRasterView(this.width, this.height);
     kb.buffer.set(this.buffer);
+    kb.calculate_invariants = this.calculate_invariants;
     return kb;
   }
 
@@ -6692,6 +6717,16 @@ class KnotRasterView {
                 .on("click", e => {
                   undo_stack.push(this.convert());
                 }));
+    $div.append(Q.create("br"));
+    $div.append(Q.create("label", {title: "Calculate invariants and identify the knot."
+                                          + " Unchecking this turns off potentially expensive computations."},
+                         Q.create("input", {type: "checkbox",
+                                            checked: this.calculate_invariants})
+                         .on("click", e => {
+                           this.calculate_invariants = e.target.checked;
+                           global_painting_state.calculate_invariants = this.calculate_invariants;
+                         }),
+                         " Calculate invariants"));
 
     if (this.the_error) {
       let $error = Q.div({className: "error"},
@@ -7638,7 +7673,7 @@ class KnotRasterView {
     // let the diagram choose orientations
     diagram.ensure_orientation();
 
-    return new KnotDiagramView(this.width, this.height, diagram);
+    return new KnotDiagramView(this.width, this.height, diagram, this.calculate_invariants);
   }
 }
 
@@ -8360,7 +8395,7 @@ Q(function () {
   canvas.prop("width", WIDTH);
   canvas.prop("height", HEIGHT);
 
-  var ctxt = canvas[0].getContext('2d');
+  var ctxt = canvas[0].getContext('2d', {willReadFrequently: true});
   undo_stack.listeners.push(undo_stack => {
     Q(".modename").empty().append(undo_stack.get().mode_name);
     undo_stack.get().paint(ctxt);
